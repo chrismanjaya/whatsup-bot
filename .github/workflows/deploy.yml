@@ -25,6 +25,11 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts
 
+      - name: Write environment file
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} \
+            "echo 'GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}' > ~/whatsup-bot.env && chmod 600 ~/whatsup-bot.env"
+
       - name: Copy binary to VM
         run: |
           scp -i ~/.ssh/id_rsa whatsup-bot ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:~/whatsup-bot/whatsup-bot.new

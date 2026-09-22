@@ -10,6 +10,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.6'
+
+      - name: Build binary
+        run: go build -o whatsup-bot ./cmd/bot
+
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
@@ -17,12 +25,11 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts
 
-      - name: Copy source to VM
+      - name: Copy binary to VM
         run: |
-          rsync -avz --exclude 'whatsmeow.db' --exclude 'transactions.db' \
-            ./ ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:~/whatsup-bot/
+          scp -i ~/.ssh/id_rsa whatsup-bot ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:~/whatsup-bot/whatsup-bot.new
 
-      - name: Build and restart service
+      - name: Replace binary and restart service
         run: |
-          ssh ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} \
-            "cd ~/whatsup-bot && go build -o whatsup-bot . && sudo systemctl restart whatsup-bot"
+          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} \
+            "mv ~/whatsup-bot/whatsup-bot.new ~/whatsup-bot/whatsup-bot && chmod +x ~/whatsup-bot/whatsup-bot && sudo systemctl restart whatsup-bot"

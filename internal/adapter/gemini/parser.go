@@ -18,8 +18,8 @@ type Parser struct {
 	model  string
 }
 
-func NewParser(client *genai.Client) *Parser {
-	return &Parser{client: client, model: "gemini-2.5-flash"}
+func NewParser(client *genai.Client, model string) *Parser {
+	return &Parser{client: client, model: model}
 }
 
 const systemInstruction = `...` // unchanged from before

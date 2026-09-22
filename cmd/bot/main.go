@@ -47,7 +47,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	parser := gemini.NewParser(geminiClient)
+	geminiModel := os.Getenv("GEMINI_MODEL")
+	if geminiModel == "" {
+		geminiModel = "gemini-3.6-flash"
+	}
+	parser := gemini.NewParser(geminiClient, geminiModel)
 
 	registerUser := usecase.NewRegisterUserUseCase(userRepo)
 	recordTx := usecase.NewRecordTransactionUseCase(userRepo, txRepo, parser)

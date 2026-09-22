@@ -24,20 +24,21 @@ A personal WhatsApp bot that tracks income and expenses through natural chat mes
 Built with clean architecture principles — business logic is independent of WhatsApp, Gemini, and storage specifics, making each piece swappable and testable in isolation.
 
 whatsup-bot/
-├── cmd/bot/ # entry point, dependency wiring
-├── internal/
-│ ├── domain/ # entities (Transaction, User, Group) — no external deps
-│ ├── usecase/ # business logic — depends only on domain + port interfaces
-│ ├── port/ # interfaces (repositories, parser, exporter)
-│ └── adapter/
-│ ├── whatsapp/ # whatsmeow integration
-│ ├── gemini/ # LLM-based message parsing
-│ ├── sqlite/ # persistence layer
-│ └── sheets/ # Google Sheets export
-├── go.mod
-├── Makefile
-└── .github/workflows/ # CI/CD (auto-deploy on merge to main)
-
+   cmd/
+      bot/ # entry point, dependency wiring
+   internal/
+      domain/ # entities (Transaction, User, Group) — no external deps
+      usecase/ # business logic — depends only on domain + port interfaces
+      port/ # interfaces (repositories, parser, exporter)
+      adapter/
+      whatsapp/ # whatsmeow integration
+      gemini/ # LLM-based message parsing
+      sqlite/ # persistence layer
+      sheets/ # Google Sheets export
+   go.mod
+   Makefile
+   .github/
+      workflows/ # CI/CD (auto-deploy on merge to main)
 
 ## Tech stack
 

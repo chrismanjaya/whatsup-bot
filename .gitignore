@@ -1,0 +1,4 @@
+whatsmeow.db
+transactions.db
+*.env
+service-account.json

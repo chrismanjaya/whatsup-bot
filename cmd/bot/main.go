@@ -189,6 +189,9 @@ func handleMessage(
 	reply, recorded, err := recordTx.Execute(ctx, senderJID, text, isGroup, groupID)
 	if err != nil {
 		slog.Error("record transaction failed", "sender", senderJID, "error", err)
+		if strings.Contains(err.Error(), "UNAVAILABLE") || strings.Contains(err.Error(), "503") {
+			return "The service is a bit busy right now, please try sending that again in a moment."
+		}
 		return "Something went wrong recording that."
 	}
 	slog.Info("transaction processed", "sender", senderJID, "is_group", isGroup, "recorded", recorded)

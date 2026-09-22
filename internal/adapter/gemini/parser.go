@@ -1,4 +1,3 @@
-// internal/adapter/gemini/parser.go
 package gemini
 
 import (
@@ -7,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"google.golang.org/genai"
 
@@ -65,10 +65,21 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 		},
 	}
 
-	result, err := p.client.Models.GenerateContent(ctx, p.model, genai.Text(rawText), config)
-	if err != nil {
-		slog.Error("gemini request failed", "error", err)
-		return nil, fmt.Errorf("gemini request failed: %w", err)
+	var result *genai.GenerateContentResponse
+	var err error
+	backoff := 500 * time.Millisecond
+	for attempt := 1; attempt <= 3; attempt++ {
+		result, err = p.client.Models.GenerateContent(ctx, p.model, genai.Text(rawText), config)
+		if err == nil {
+			break
+		}
+		if !isRetryable(err) || attempt == 3 {
+			slog.Error("gemini request failed", "attempt", attempt, "error", err)
+			return nil, fmt.Errorf("gemini request failed: %w", err)
+		}
+		slog.Warn("gemini request failed, retrying", "attempt", attempt, "error", err)
+		time.Sleep(backoff)
+		backoff *= 2
 	}
 
 	if result.UsageMetadata != nil {
@@ -86,12 +97,25 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 		return nil, fmt.Errorf("failed to parse gemini response %q: %w", raw, err)
 	}
 
-	slog.Info("gemini parsed message", "valid", gr.Valid, "type", gr.Type, "amount", gr.Amount, "category", gr.Category, "description", gr.Description)
+	slog.Info("gemini parsed message",
+		"valid", gr.Valid,
+		"type", gr.Type,
+		"amount", gr.Amount,
+		"category", gr.Category,
+		"description", gr.Description,
+	)
 
 	return &port.ParsedMessage{
-		Valid:    gr.Valid,
-		Type:     gr.Type,
-		Amount:   gr.Amount,
-		Category: gr.Category,
+		Valid:       gr.Valid,
+		Type:        gr.Type,
+		Amount:      gr.Amount,
+		Category:    gr.Category,
+		Description: gr.Description,
 	}, nil
+}
+
+func isRetryable(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "503") || strings.Contains(msg, "UNAVAILABLE") ||
+		strings.Contains(msg, "429") || strings.Contains(msg, "RESOURCE_EXHAUSTED")
 }

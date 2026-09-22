@@ -18,20 +18,17 @@ func NewTransactionRepo(db *sql.DB) *TransactionRepo {
 }
 
 func (r *TransactionRepo) Save(ctx context.Context, tx *domain.Transaction) error {
-	if tx.CreatedAt.IsZero() {
-		tx.CreatedAt = time.Now()
-	}
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO transactions (user_id, description, type, amount, category, is_shared, group_id, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		tx.UserID, tx.Description, string(tx.Type), tx.Amount, tx.Category, tx.IsShared, nullableGroupID(tx.GroupID), tx.CreatedAt,
+		`INSERT INTO transactions (user_id, description, type, amount, category, is_shared, group_id, transaction_date, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tx.UserID, tx.Description, tx.Type, tx.Amount, tx.Category, tx.IsShared, nullableGroupID(tx.GroupID), tx.TransactionDate, tx.CreatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("insert transaction: %w", err)
+		return fmt.Errorf("insert transaction failed: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("get last insert id: %w", err)
+		return fmt.Errorf("get last insert id failed: %w", err)
 	}
 	tx.ID = id
 	return nil

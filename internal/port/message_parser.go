@@ -10,6 +10,7 @@ type ParsedMessage struct {
 	Amount      int64
 	Category    string
 	Description string
+	Date        string // "YYYY-MM-DD", resolved by the model relative to today
 }
 
 type MessageParser interface {

@@ -14,15 +14,16 @@ type (
 	TransactionType string
 
 	Transaction struct {
-		ID          int64
-		UserID      int64
-		Description string
-		Type        TransactionType
-		Amount      int64
-		Category    string
-		IsShared    bool
-		GroupID     int64
-		CreatedAt   time.Time
+		ID              int64
+		UserID          int64
+		Description     string
+		Type            TransactionType
+		Amount          int64
+		Category        string
+		IsShared        bool
+		GroupID         int64
+		TransactionDate time.Time
+		CreatedAt       time.Time
 	}
 )
 

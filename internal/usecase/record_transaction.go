@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -48,16 +49,31 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		description = rawText
 	}
 
-	tx := &domain.Transaction{
-		UserID:      user.ID,
-		Description: description,
-		Type:        txType,
-		Amount:      parsed.Amount,
-		Category:    parsed.Category,
-		IsShared:    isShared,
-		GroupID:     groupID,
-		CreatedAt:   time.Now(),
+	transactionDate := time.Now()
+	if parsed.Date != "" {
+		loc, locErr := time.LoadLocation("Asia/Jakarta")
+		if locErr != nil {
+			loc = time.UTC
+		}
+		if d, dateErr := time.ParseInLocation("2006-01-02", parsed.Date, loc); dateErr == nil {
+			transactionDate = d
+		} else {
+			slog.Warn("failed to parse date from gemini, using now", "date", parsed.Date, "error", dateErr)
+		}
 	}
+
+	tx := &domain.Transaction{
+		UserID:          user.ID,
+		Description:     description,
+		Type:            txType,
+		Amount:          parsed.Amount,
+		Category:        parsed.Category,
+		IsShared:        isShared,
+		GroupID:         groupID,
+		TransactionDate: transactionDate,
+		CreatedAt:       time.Now(),
+	}
+
 	if err := uc.txRepo.Save(ctx, tx); err != nil {
 		return "", false, fmt.Errorf("save failed: %w", err)
 	}
@@ -82,7 +98,7 @@ func renderTransactionReply(tx *domain.Transaction) string {
 		"[[transaction_description]]", titleCase(tx.Description),
 		"[[transaction_category]]", titleCase(tx.Category),
 		"[[transaction_amount_formatted]]", "IDR "+formatAmount(tx.Amount),
-		"[[transaction_date_formatted]]", tx.CreatedAt.Format("02 Jan 2006"),
+		"[[transaction_date_formatted]]", tx.TransactionDate.Format("02 Jan 2006"),
 	)
 	return replacer.Replace(transactionReplyTemplate)
 }

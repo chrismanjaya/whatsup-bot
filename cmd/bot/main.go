@@ -186,11 +186,11 @@ func handleMessage(
 		return reply
 	}
 
-	reply, err := recordTx.Execute(ctx, senderJID, text, isGroup, groupID)
+	reply, recorded, err := recordTx.Execute(ctx, senderJID, text, isGroup, groupID)
 	if err != nil {
 		slog.Error("record transaction failed", "sender", senderJID, "error", err)
 		return "Something went wrong recording that."
 	}
-	slog.Info("transaction recorded", "sender", senderJID, "is_group", isGroup)
+	slog.Info("transaction processed", "sender", senderJID, "is_group", isGroup, "recorded", recorded)
 	return reply
 }

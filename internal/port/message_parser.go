@@ -5,10 +5,11 @@ import (
 )
 
 type ParsedMessage struct {
-	Valid    bool
-	Type     string
-	Amount   int64
-	Category string
+	Valid       bool
+	Type        string
+	Amount      int64
+	Category    string
+	Description string
 }
 
 type MessageParser interface {

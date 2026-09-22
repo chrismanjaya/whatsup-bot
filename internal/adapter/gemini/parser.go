@@ -86,7 +86,7 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 		return nil, fmt.Errorf("failed to parse gemini response %q: %w", raw, err)
 	}
 
-	slog.Info("gemini parsed message", "valid", gr.Valid, "type", gr.Type, "amount", gr.Amount, "category", gr.Category)
+	slog.Info("gemini parsed message", "valid", gr.Valid, "type", gr.Type, "amount", gr.Amount, "category", gr.Category, "description", gr.Description)
 
 	return &port.ParsedMessage{
 		Valid:    gr.Valid,

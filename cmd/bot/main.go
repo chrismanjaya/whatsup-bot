@@ -13,6 +13,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
@@ -110,7 +111,16 @@ func main() {
 			}
 		}
 
+		if err := client.SendChatPresence(ctx, chatJID, types.ChatPresenceComposing, types.ChatPresenceMediaText); err != nil {
+			utils.LogError("send typing presence failed", err, "chat_jid", chatJID.String())
+		}
+
 		reply := handleMessage(ctx, text, senderJID, isGroup, groupID, registerUser, recordTx, computeSplit)
+
+		if err := client.SendChatPresence(ctx, chatJID, types.ChatPresencePaused, types.ChatPresenceMediaText); err != nil {
+			utils.LogError("clear typing presence failed", err, "chat_jid", chatJID.String())
+		}
+
 		if reply == "" {
 			return
 		}
@@ -140,6 +150,10 @@ func main() {
 		}
 	}
 
+	if err := client.SendPresence(ctx, types.PresenceAvailable); err != nil {
+		utils.LogError("set presence failed", err)
+	}
+
 	fmt.Println("Bot is running. Press Ctrl+C to exit.")
 
 	sigChan := make(chan os.Signal, 1)
@@ -160,7 +174,7 @@ func handleMessage(
 ) string {
 	slog.Info("message received", "sender", senderJID, "is_group", isGroup, "group_id", groupID, "text", text)
 
-	if strings.HasPrefix(text, "Recorded:") || strings.HasPrefix(text, "Welcome") {
+	if strings.HasPrefix(text, "*EXPENSE*") || strings.HasPrefix(text, "*INCOME*") || strings.HasPrefix(text, "Welcome") || strings.HasPrefix(text, "You're already registered") {
 		return ""
 	}
 

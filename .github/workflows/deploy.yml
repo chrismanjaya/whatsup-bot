@@ -28,7 +28,7 @@ jobs:
       - name: Write environment file
         run: |
           ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} \
-            "echo 'GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}' > ~/whatsup-bot.env && chmod 600 ~/whatsup-bot.env"
+            "printf 'GEMINI_API_KEY=%s\nGEMINI_MODEL=%s\n' '${{ secrets.GEMINI_API_KEY }}' '${{ secrets.GEMINI_MODEL }}' > ~/whatsup-bot.env && chmod 600 ~/whatsup-bot.env"
 
       - name: Copy binary to VM
         run: |

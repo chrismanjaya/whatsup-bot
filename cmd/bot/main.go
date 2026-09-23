@@ -88,7 +88,7 @@ func main() {
 			return
 		}
 
-		senderJID := v.Info.Sender.String()
+		senderJID := v.Info.Sender.ToNonAD().String()
 		chatJID := v.Info.Chat
 		isGroup := strings.HasSuffix(chatJID.String(), "@g.us")
 

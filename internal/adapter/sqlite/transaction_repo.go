@@ -60,6 +60,55 @@ func (r *TransactionRepo) FindByGroup(ctx context.Context, groupID int64, since 
 	return scanTransactions(rows)
 }
 
+func (r *TransactionRepo) FindByWAMessageID(ctx context.Context, waMessageID string) (*domain.Transaction, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT id, user_id, description, type, amount, category, is_shared, group_id, transaction_date, created_at
+		 FROM transactions WHERE wa_message_id = ?`,
+		waMessageID,
+	)
+
+	var tx domain.Transaction
+	var txType string
+	var groupID sql.NullInt64
+	if err := row.Scan(&tx.ID, &tx.UserID, &tx.Description, &txType, &tx.Amount, &tx.Category, &tx.IsShared, &groupID, &tx.TransactionDate, &tx.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, utils.Wrap(err, "find transaction by wa message id")
+	}
+	tx.Type = domain.TransactionType(txType)
+	if groupID.Valid {
+		tx.GroupID = groupID.Int64
+	}
+	tx.WAMessageID = waMessageID
+	return &tx, nil
+}
+
+func (r *TransactionRepo) SetWAMessageID(ctx context.Context, id int64, waMessageID string) error {
+	if _, err := r.db.ExecContext(ctx, `UPDATE transactions SET wa_message_id = ? WHERE id = ?`, waMessageID, id); err != nil {
+		return utils.Wrap(err, "set wa message id failed")
+	}
+	return nil
+}
+
+func (r *TransactionRepo) Update(ctx context.Context, tx *domain.Transaction) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE transactions SET description = ?, type = ?, amount = ?, category = ?, transaction_date = ? WHERE id = ?`,
+		tx.Description, tx.Type, tx.Amount, tx.Category, tx.TransactionDate, tx.ID,
+	)
+	if err != nil {
+		return utils.Wrap(err, "update transaction failed")
+	}
+	return nil
+}
+
+func (r *TransactionRepo) Delete(ctx context.Context, id int64) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM transactions WHERE id = ?`, id); err != nil {
+		return utils.Wrap(err, "delete transaction failed")
+	}
+	return nil
+}
+
 func scanTransactions(rows *sql.Rows) ([]*domain.Transaction, error) {
 	var results []*domain.Transaction
 	for rows.Next() {

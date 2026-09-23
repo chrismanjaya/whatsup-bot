@@ -23,44 +23,31 @@ func NewRecordTransactionUseCase(userRepo port.UserRepository, txRepo port.Trans
 	return &RecordTransactionUseCase{userRepo: userRepo, txRepo: txRepo, parser: parser}
 }
 
-func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawText string, isShared bool, groupID int64) (reply string, recorded bool, err error) {
+func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawText string, isShared bool, groupID int64) (reply string, tx *domain.Transaction, err error) {
 	user, err := uc.userRepo.FindByJID(ctx, senderJID)
 	if err != nil {
-		return "", false, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
+		return "", nil, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
 	}
 	if user == nil {
-		return "", false, utils.Wrap(constant.ErrNotFound, "user not registered")
+		return "", nil, utils.Wrap(constant.ErrNotFound, "user not registered")
 	}
 
 	parsed, err := uc.parser.Parse(ctx, rawText)
 	if err != nil {
-		return "", false, utils.Wrap(err, "parse failed")
+		return "", nil, utils.Wrap(err, "parse failed")
 	}
 	if !parsed.Valid {
-		return "", false, utils.Wrap(constant.ErrInvalidRequest, "message is not a financial transaction")
+		return "", nil, utils.Wrap(constant.ErrInvalidRequest, "message is not a financial transaction")
 	}
 
 	txType, err := domain.ParseTransactionType(parsed.Type)
 	if err != nil {
-		return "", false, utils.WrapStd(constant.ErrInternal, "invalid type from parser", err)
+		return "", nil, utils.WrapStd(constant.ErrInternal, "invalid type from parser", err)
 	}
 
 	description := parsed.Description
 	if description == "" {
 		description = rawText
-	}
-
-	transactionDate := time.Now()
-	if parsed.Date != "" {
-		loc, locErr := time.LoadLocation("Asia/Jakarta")
-		if locErr != nil {
-			loc = time.UTC
-		}
-		if d, dateErr := time.ParseInLocation("2006-01-02", parsed.Date, loc); dateErr == nil {
-			transactionDate = d
-		} else {
-			utils.LogWarn("failed to parse date from gemini, using now", dateErr, "date", parsed.Date)
-		}
 	}
 
 	category, catErr := domain.ParseCategory(parsed.Category)
@@ -69,7 +56,7 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		category = domain.CategoryOther
 	}
 
-	tx := &domain.Transaction{
+	tx = &domain.Transaction{
 		UserID:          user.ID,
 		Description:     description,
 		Type:            txType,
@@ -77,15 +64,34 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		Category:        category,
 		IsShared:        isShared,
 		GroupID:         groupID,
-		TransactionDate: transactionDate,
+		TransactionDate: resolveTransactionDate(parsed.Date, time.Now()),
 		CreatedAt:       time.Now(),
 	}
 
 	if err := uc.txRepo.Save(ctx, tx); err != nil {
-		return "", false, utils.WrapStd(constant.ErrInternal, "save failed", err)
+		return "", nil, utils.WrapStd(constant.ErrInternal, "save failed", err)
 	}
 
-	return renderTransactionReply(tx), true, nil
+	return renderTransactionReply(tx), tx, nil
+}
+
+// resolveTransactionDate parses a "YYYY-MM-DD" date string from the model
+// into Asia/Jakarta local time, falling back to fallback when the string is
+// empty or fails to parse.
+func resolveTransactionDate(dateStr string, fallback time.Time) time.Time {
+	if dateStr == "" {
+		return fallback
+	}
+	loc, locErr := time.LoadLocation("Asia/Jakarta")
+	if locErr != nil {
+		loc = time.UTC
+	}
+	d, dateErr := time.ParseInLocation("2006-01-02", dateStr, loc)
+	if dateErr != nil {
+		utils.LogWarn("failed to parse date from gemini, using fallback", dateErr, "date", dateStr)
+		return fallback
+	}
+	return d
 }
 
 const transactionReplyTemplate = `*[[transaction_type_str]]*
@@ -93,6 +99,18 @@ const transactionReplyTemplate = `*[[transaction_type_str]]*
 - Category: *[[transaction_category]]*
 - Amount: *[[transaction_amount_formatted]]*
 - Date: *[[transaction_date_formatted]]*`
+
+const deletedReplyTemplate = `*DELETED*
+- Desc: *[[transaction_description]]*
+- Amount: *[[transaction_amount_formatted]]*`
+
+func renderDeletedReply(tx *domain.Transaction) string {
+	replacer := strings.NewReplacer(
+		"[[transaction_description]]", titleCase(tx.Description),
+		"[[transaction_amount_formatted]]", "IDR "+formatAmount(tx.Amount),
+	)
+	return replacer.Replace(deletedReplyTemplate)
+}
 
 func renderTransactionReply(tx *domain.Transaction) string {
 	typeStr := "EXPENSE"

@@ -36,12 +36,14 @@ const (
 			group_id         INTEGER,
 			transaction_date DATETIME NOT NULL,
 			created_at       DATETIME NOT NULL,
+			wa_message_id    TEXT,
 			FOREIGN KEY (user_id)  REFERENCES users(id),
 			FOREIGN KEY (group_id) REFERENCES groups(id)
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_transactions_user_date  ON transactions(user_id, transaction_date);
 		CREATE INDEX IF NOT EXISTS idx_transactions_group_date ON transactions(group_id, transaction_date);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_wa_message_id ON transactions(wa_message_id);
 		`
 	insertGroupQuery = ``
 )

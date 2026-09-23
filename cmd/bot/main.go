@@ -25,6 +25,7 @@ import (
 	"whatsup-bot/internal/adapter/gemini"
 	"whatsup-bot/internal/adapter/sqlite"
 	"whatsup-bot/internal/constant"
+	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/usecase"
 	"whatsup-bot/internal/utils"
 )
@@ -58,6 +59,7 @@ func main() {
 
 	registerUser := usecase.NewRegisterUserUseCase(userRepo)
 	recordTx := usecase.NewRecordTransactionUseCase(userRepo, txRepo, parser)
+	amendTx := usecase.NewAmendTransactionUseCase(userRepo, txRepo, parser)
 	ensureGroup := usecase.NewEnsureGroupUseCase(groupRepo)
 	ensureMembership := usecase.NewEnsureGroupMembershipUseCase(userRepo, groupRepo)
 	computeSplit := usecase.NewComputeSplitUseCase(groupRepo, txRepo)
@@ -79,10 +81,19 @@ func main() {
 		if !ok {
 			return
 		}
+		if v.Info.IsFromMe {
+			return
+		}
 
 		text := v.Message.GetConversation()
-		if text == "" && v.Message.GetExtendedTextMessage() != nil {
-			text = v.Message.GetExtendedTextMessage().GetText()
+		stanzaID := ""
+		if ext := v.Message.GetExtendedTextMessage(); ext != nil {
+			if text == "" {
+				text = ext.GetText()
+			}
+			if ci := ext.GetContextInfo(); ci != nil {
+				stanzaID = ci.GetStanzaID()
+			}
 		}
 		text = strings.TrimSpace(text)
 		if text == "" {
@@ -115,7 +126,7 @@ func main() {
 			utils.LogError("send typing presence failed", err, "chat_jid", chatJID.String())
 		}
 
-		reply := handleMessage(ctx, text, senderJID, isGroup, groupID, registerUser, recordTx, computeSplit)
+		reply, tx := handleMessage(ctx, text, stanzaID, senderJID, isGroup, groupID, registerUser, recordTx, amendTx, computeSplit)
 
 		if err := client.SendChatPresence(ctx, chatJID, types.ChatPresencePaused, types.ChatPresenceMediaText); err != nil {
 			utils.LogError("clear typing presence failed", err, "chat_jid", chatJID.String())
@@ -126,8 +137,16 @@ func main() {
 		}
 
 		msg := &waE2E.Message{Conversation: proto.String(reply)}
-		if _, err := client.SendMessage(ctx, chatJID, msg); err != nil {
+		resp, err := client.SendMessage(ctx, chatJID, msg)
+		if err != nil {
 			utils.LogError("send reply failed", err, "chat_jid", chatJID.String())
+			return
+		}
+
+		if tx != nil {
+			if err := txRepo.SetWAMessageID(ctx, tx.ID, resp.ID); err != nil {
+				utils.LogError("set wa message id failed", err, "tx_id", tx.ID)
+			}
 		}
 	})
 
@@ -165,50 +184,63 @@ func main() {
 
 func handleMessage(
 	ctx context.Context,
-	text, senderJID string,
+	text, stanzaID, senderJID string,
 	isGroup bool,
 	groupID int64,
 	registerUser *usecase.RegisterUserUseCase,
 	recordTx *usecase.RecordTransactionUseCase,
+	amendTx *usecase.AmendTransactionUseCase,
 	computeSplit *usecase.ComputeSplitUseCase,
-) string {
-	slog.Info("message received", "sender", senderJID, "is_group", isGroup, "group_id", groupID, "text", text)
+) (string, *domain.Transaction) {
+	slog.Info("message received", "sender", senderJID, "is_group", isGroup, "group_id", groupID, "text", text, "stanza_id", stanzaID)
 
-	if strings.HasPrefix(text, "*EXPENSE*") || strings.HasPrefix(text, "*INCOME*") || strings.HasPrefix(text, "Welcome") || strings.HasPrefix(text, "You're already registered") {
-		return ""
+	if strings.HasPrefix(text, "*EXPENSE*") || strings.HasPrefix(text, "*INCOME*") || strings.HasPrefix(text, "*DELETED*") || strings.HasPrefix(text, "Welcome") || strings.HasPrefix(text, "You're already registered") {
+		return "", nil
+	}
+
+	if stanzaID != "" {
+		reply, tx, handled, err := amendTx.Execute(ctx, senderJID, stanzaID, text)
+		if err != nil {
+			utils.LogError("amend transaction failed", err, "sender", senderJID)
+			return replyForError(err), nil
+		}
+		if handled {
+			slog.Info("transaction amended", "sender", senderJID, "stanza_id", stanzaID)
+			return reply, tx
+		}
 	}
 
 	if strings.HasPrefix(text, "register ") {
 		parts := strings.Fields(text)
 		if len(parts) < 3 {
-			return "Usage: register <name> <email>"
+			return "Usage: register <name> <email>", nil
 		}
 		reply, err := registerUser.Execute(ctx, senderJID, parts[1], parts[2])
 		if err != nil {
 			utils.LogError("register failed", err, "sender", senderJID)
-			return replyForError(err)
+			return replyForError(err), nil
 		}
 		slog.Info("user registered", "sender", senderJID, "name", parts[1])
-		return reply
+		return reply, nil
 	}
 
 	if text == "split" && isGroup {
 		reply, err := computeSplit.Execute(ctx, groupID)
 		if err != nil {
 			utils.LogError("split failed", err, "group_id", groupID)
-			return replyForError(err)
+			return replyForError(err), nil
 		}
 		slog.Info("split computed", "group_id", groupID)
-		return reply
+		return reply, nil
 	}
 
-	reply, recorded, err := recordTx.Execute(ctx, senderJID, text, isGroup, groupID)
+	reply, tx, err := recordTx.Execute(ctx, senderJID, text, isGroup, groupID)
 	if err != nil {
 		utils.LogError("record transaction failed", err, "sender", senderJID)
-		return replyForError(err)
+		return replyForError(err), nil
 	}
-	slog.Info("transaction processed", "sender", senderJID, "is_group", isGroup, "recorded", recorded)
-	return reply
+	slog.Info("transaction processed", "sender", senderJID, "is_group", isGroup, "recorded", tx != nil)
+	return reply, tx
 }
 
 // replyForError maps a usecase's classified error to the message shown to

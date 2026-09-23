@@ -24,6 +24,10 @@ type (
 		GroupID         int64           `json:"group_id"`
 		TransactionDate time.Time       `json:"transaction_date"`
 		CreatedAt       time.Time       `json:"created_at"`
+		// WAMessageID is the WhatsApp message ID of the confirmation reply the
+		// bot sent for this transaction, so a later reply to that message can
+		// be matched back to it for updates/deletes.
+		WAMessageID string `json:"wa_message_id,omitempty"`
 	}
 )
 

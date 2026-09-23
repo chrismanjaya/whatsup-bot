@@ -30,7 +30,7 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 		loc = time.UTC
 	}
 	today := time.Now().In(loc).Format("2006-01-02")
-	thinkingBudget := int32(0)
+	// thinkingBudget := int32(0)
 	systemInstruction := fmt.Sprintf(systemInstructionTemplate, today, today)
 
 	slog.Debug("gemini system instruction built", "today", today, "instruction", systemInstruction)
@@ -38,9 +38,9 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(systemInstruction, genai.RoleUser),
 		ResponseMIMEType:  "application/json",
-		ThinkingConfig: &genai.ThinkingConfig{
-			ThinkingBudget: &thinkingBudget,
-		},
+		// ThinkingConfig: &genai.ThinkingConfig{
+		// 	ThinkingBudget: &thinkingBudget,
+		// },
 		ResponseSchema: &genai.Schema{
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{

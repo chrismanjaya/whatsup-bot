@@ -98,7 +98,9 @@ const transactionReplyTemplate = `*[[transaction_type_str]]*
 - Desc: *[[transaction_description]]*
 - Category: *[[transaction_category]]*
 - Amount: *[[transaction_amount_formatted]]*
-- Date: *[[transaction_date_formatted]]*`
+- Date: *[[transaction_date_formatted]]*
+
+_*Reply to this message to update or delete this transaction_`
 
 const deletedReplyTemplate = `*DELETED*
 - Desc: *[[transaction_description]]*

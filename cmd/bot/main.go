@@ -87,12 +87,19 @@ func main() {
 
 		text := v.Message.GetConversation()
 		stanzaID := ""
+		quotedText := ""
 		if ext := v.Message.GetExtendedTextMessage(); ext != nil {
 			if text == "" {
 				text = ext.GetText()
 			}
 			if ci := ext.GetContextInfo(); ci != nil {
 				stanzaID = ci.GetStanzaID()
+				if qm := ci.GetQuotedMessage(); qm != nil {
+					quotedText = qm.GetConversation()
+					if quotedText == "" {
+						quotedText = qm.GetExtendedTextMessage().GetText()
+					}
+				}
 			}
 		}
 		text = strings.TrimSpace(text)
@@ -126,7 +133,7 @@ func main() {
 			utils.LogError("send typing presence failed", err, "chat_jid", chatJID.String())
 		}
 
-		reply, tx := handleMessage(ctx, text, stanzaID, senderJID, isGroup, groupID, registerUser, recordTx, amendTx, computeSplit)
+		reply, tx := handleMessage(ctx, text, stanzaID, quotedText, senderJID, isGroup, groupID, registerUser, recordTx, amendTx, computeSplit)
 
 		if err := client.SendChatPresence(ctx, chatJID, types.ChatPresencePaused, types.ChatPresenceMediaText); err != nil {
 			utils.LogError("clear typing presence failed", err, "chat_jid", chatJID.String())
@@ -184,7 +191,7 @@ func main() {
 
 func handleMessage(
 	ctx context.Context,
-	text, stanzaID, senderJID string,
+	text, stanzaID, quotedText, senderJID string,
 	isGroup bool,
 	groupID int64,
 	registerUser *usecase.RegisterUserUseCase,
@@ -192,7 +199,7 @@ func handleMessage(
 	amendTx *usecase.AmendTransactionUseCase,
 	computeSplit *usecase.ComputeSplitUseCase,
 ) (string, *domain.Transaction) {
-	slog.Info("message received", "sender", senderJID, "is_group", isGroup, "group_id", groupID, "text", text, "stanza_id", stanzaID)
+	slog.Info("message received", "sender", senderJID, "is_group", isGroup, "group_id", groupID, "text", text, "stanza_id", stanzaID, "quoted_text", quotedText)
 
 	if strings.HasPrefix(text, "*EXPENSE*") || strings.HasPrefix(text, "*INCOME*") || strings.HasPrefix(text, "*DELETED*") || strings.HasPrefix(text, "Welcome") || strings.HasPrefix(text, "You're already registered") {
 		return "", nil
@@ -208,6 +215,8 @@ func handleMessage(
 			slog.Info("transaction amended", "sender", senderJID, "stanza_id", stanzaID)
 			return reply, tx
 		}
+		slog.Warn("reply stanza id not linked to a tracked transaction, falling back to normal handling",
+			"sender", senderJID, "stanza_id", stanzaID, "quoted_text", quotedText)
 	}
 
 	if strings.HasPrefix(text, "register ") {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"whatsup-bot/internal/domain"
+	"whatsup-bot/internal/utils"
 )
 
 type UserRepo struct {
@@ -23,11 +23,11 @@ func (r *UserRepo) Save(ctx context.Context, u *domain.User) error {
 		u.JID, u.Name, u.Email, u.RegisterAt,
 	)
 	if err != nil {
-		return fmt.Errorf("insert user: %w", err)
+		return utils.Wrap(err, "insert user")
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("get last insert id: %w", err)
+		return utils.Wrap(err, "get last insert id")
 	}
 	u.ID = id
 	return nil
@@ -43,7 +43,7 @@ func (r *UserRepo) FindByJID(ctx context.Context, jid string) (*domain.User, err
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query user: %w", err)
+		return nil, utils.Wrap(err, "query user")
 	}
 	return &u, nil
 }
@@ -58,7 +58,7 @@ func (r *UserRepo) FindByID(ctx context.Context, id int64) (*domain.User, error)
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query user: %w", err)
+		return nil, utils.Wrap(err, "query user")
 	}
 	return &u, nil
 }

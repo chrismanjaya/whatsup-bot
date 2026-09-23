@@ -2,14 +2,14 @@ package usecase
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
+	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/port"
+	"whatsup-bot/internal/utils"
 )
 
 type RecordTransactionUseCase struct {
@@ -25,23 +25,23 @@ func NewRecordTransactionUseCase(userRepo port.UserRepository, txRepo port.Trans
 func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawText string, isShared bool, groupID int64) (reply string, recorded bool, err error) {
 	user, err := uc.userRepo.FindByJID(ctx, senderJID)
 	if err != nil {
-		return "", false, err
+		return "", false, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
 	}
 	if user == nil {
-		return "Please register first: register <name> <email>", false, nil
+		return "", false, utils.Wrap(constant.ErrNotFound, "user not registered")
 	}
 
 	parsed, err := uc.parser.Parse(ctx, rawText)
 	if err != nil {
-		return "", false, fmt.Errorf("parse failed: %w", err)
+		return "", false, utils.Wrap(err, "parse failed")
 	}
 	if !parsed.Valid {
-		return "I can only help track income and expenses. Try: \"spent 50k on lunch\"", false, nil
+		return "", false, utils.Wrap(constant.ErrInvalidRequest, "message is not a financial transaction")
 	}
 
 	txType, err := domain.ParseTransactionType(parsed.Type)
 	if err != nil {
-		return "", false, fmt.Errorf("invalid type from parser: %w", err)
+		return "", false, utils.WrapStd(constant.ErrInternal, "invalid type from parser", err)
 	}
 
 	description := parsed.Description
@@ -58,7 +58,7 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		if d, dateErr := time.ParseInLocation("2006-01-02", parsed.Date, loc); dateErr == nil {
 			transactionDate = d
 		} else {
-			slog.Warn("failed to parse date from gemini, using now", "date", parsed.Date, "error", dateErr)
+			utils.LogWarn("failed to parse date from gemini, using now", dateErr, "date", parsed.Date)
 		}
 	}
 
@@ -75,7 +75,7 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 	}
 
 	if err := uc.txRepo.Save(ctx, tx); err != nil {
-		return "", false, fmt.Errorf("save failed: %w", err)
+		return "", false, utils.WrapStd(constant.ErrInternal, "save failed", err)
 	}
 
 	return renderTransactionReply(tx), true, nil

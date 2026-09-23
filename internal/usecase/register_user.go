@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/port"
+	"whatsup-bot/internal/utils"
 )
 
 type RegisterUserUseCase struct {
@@ -17,9 +20,12 @@ func NewRegisterUserUseCase(repo port.UserRepository) *RegisterUserUseCase {
 }
 
 func (uc *RegisterUserUseCase) Execute(ctx context.Context, jid, name, email string) (string, error) {
-	existing, _ := uc.repo.FindByJID(ctx, jid)
+	existing, err := uc.repo.FindByJID(ctx, jid)
+	if err != nil {
+		return "", utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
+	}
 	if existing != nil {
-		return "You're already registered.", nil
+		return "", utils.Wrap(constant.ErrAlreadyExists, "user already registered")
 	}
 
 	user := &domain.User{
@@ -30,7 +36,7 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, jid, name, email str
 	}
 
 	if err := uc.repo.Save(ctx, user); err != nil {
-		return "", fmt.Errorf("failed to save user: %w", err)
+		return "", utils.WrapStd(constant.ErrInternal, "failed to save user", err)
 	}
 
 	return fmt.Sprintf("Welcome, %s! You can now log your income/expenses.", name), nil

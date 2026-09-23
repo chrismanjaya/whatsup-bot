@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/port"
+	"whatsup-bot/internal/utils"
 )
 
 type ComputeSplitUseCase struct {
@@ -22,7 +24,7 @@ func NewComputeSplitUseCase(groupRepo port.GroupRepository, txRepo port.Transact
 func (uc *ComputeSplitUseCase) Execute(ctx context.Context, groupID int64) (string, error) {
 	members, err := uc.groupRepo.ListMembers(ctx, groupID)
 	if err != nil {
-		return "", fmt.Errorf("list members failed: %w", err)
+		return "", utils.WrapStd(constant.ErrInternal, "list members failed", err)
 	}
 	if len(members) == 0 {
 		return "No members found for this group.", nil
@@ -32,7 +34,7 @@ func (uc *ComputeSplitUseCase) Execute(ctx context.Context, groupID int64) (stri
 
 	txs, err := uc.txRepo.FindByGroup(ctx, groupID, startOfMonth)
 	if err != nil {
-		return "", fmt.Errorf("fetch transactions failed: %w", err)
+		return "", utils.WrapStd(constant.ErrInternal, "fetch transactions failed", err)
 	}
 
 	totals := make(map[int64]int64)

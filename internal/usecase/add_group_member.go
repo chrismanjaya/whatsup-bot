@@ -2,9 +2,10 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
+	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/port"
+	"whatsup-bot/internal/utils"
 )
 
 type AddGroupMemberUseCase struct {
@@ -19,7 +20,7 @@ func NewAddGroupMemberUseCase(groupRepo port.GroupRepository) *AddGroupMemberUse
 // duplicate (groupID, userID) pair as a no-op rather than an error.
 func (uc *AddGroupMemberUseCase) Execute(ctx context.Context, groupID, userID int64) error {
 	if err := uc.groupRepo.AddMember(ctx, groupID, userID); err != nil {
-		return fmt.Errorf("add member failed: %w", err)
+		return utils.WrapStd(constant.ErrInternal, "add member failed", err)
 	}
 	return nil
 }

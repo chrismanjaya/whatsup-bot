@@ -4,14 +4,14 @@ import "time"
 
 type (
 	Group struct {
-		ID        int64
-		JID       string
-		Name      string
-		CreatedAt time.Time
+		ID        int64     `json:"id"`
+		JID       string    `json:"jid"`
+		Name      string    `json:"name"`
+		CreatedAt time.Time `json:"created_at"`
 	}
 
 	GroupMember struct {
-		GroupID int64
-		UserID  int64
+		GroupID int64 `json:"group_id"`
+		UserID  int64 `json:"user_id"`
 	}
 )

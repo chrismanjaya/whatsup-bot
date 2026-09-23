@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"whatsup-bot/internal/domain"
+	"whatsup-bot/internal/utils"
 )
 
 type GroupRepo struct {
@@ -23,11 +23,11 @@ func (r *GroupRepo) Save(ctx context.Context, g *domain.Group) error {
 		g.JID, g.Name, g.CreatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("insert group: %w", err)
+		return utils.Wrap(err, "insert group")
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("get last insert id: %w", err)
+		return utils.Wrap(err, "get last insert id")
 	}
 	g.ID = id
 	return nil
@@ -41,7 +41,7 @@ func (r *GroupRepo) FindByJID(ctx context.Context, jid string) (*domain.Group, e
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query group: %w", err)
+		return nil, utils.Wrap(err, "query group")
 	}
 	return &g, nil
 }
@@ -54,7 +54,7 @@ func (r *GroupRepo) FindByID(ctx context.Context, id int64) (*domain.Group, erro
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query group: %w", err)
+		return nil, utils.Wrap(err, "query group")
 	}
 	return &g, nil
 }
@@ -66,7 +66,7 @@ func (r *GroupRepo) AddMember(ctx context.Context, groupID, userID int64) error 
 		groupID, userID,
 	)
 	if err != nil {
-		return fmt.Errorf("insert group member: %w", err)
+		return utils.Wrap(err, "insert group member")
 	}
 	return nil
 }
@@ -80,7 +80,7 @@ func (r *GroupRepo) ListMembers(ctx context.Context, groupID int64) ([]*domain.U
 		groupID,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query members: %w", err)
+		return nil, utils.Wrap(err, "query members")
 	}
 	defer rows.Close()
 
@@ -88,7 +88,7 @@ func (r *GroupRepo) ListMembers(ctx context.Context, groupID int64) ([]*domain.U
 	for rows.Next() {
 		var u domain.User
 		if err := rows.Scan(&u.ID, &u.JID, &u.Name, &u.Email, &u.RegisterAt); err != nil {
-			return nil, fmt.Errorf("scan member: %w", err)
+			return nil, utils.Wrap(err, "scan member")
 		}
 		users = append(users, &u)
 	}

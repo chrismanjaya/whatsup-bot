@@ -2,11 +2,12 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/port"
+	"whatsup-bot/internal/utils"
 )
 
 type EnsureGroupUseCase struct {
@@ -21,7 +22,7 @@ func NewEnsureGroupUseCase(groupRepo port.GroupRepository) *EnsureGroupUseCase {
 func (uc *EnsureGroupUseCase) Execute(ctx context.Context, jid, name string) (int64, error) {
 	existing, err := uc.groupRepo.FindByJID(ctx, jid)
 	if err != nil {
-		return 0, fmt.Errorf("lookup failed: %w", err)
+		return 0, utils.WrapStd(constant.ErrInternal, "lookup failed", err)
 	}
 	if existing != nil {
 		return existing.ID, nil
@@ -29,7 +30,7 @@ func (uc *EnsureGroupUseCase) Execute(ctx context.Context, jid, name string) (in
 
 	group := &domain.Group{JID: jid, Name: name, CreatedAt: time.Now()}
 	if err := uc.groupRepo.Save(ctx, group); err != nil {
-		return 0, fmt.Errorf("save failed: %w", err)
+		return 0, utils.WrapStd(constant.ErrInternal, "save failed", err)
 	}
 	return group.ID, nil
 }

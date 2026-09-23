@@ -14,16 +14,16 @@ type (
 	TransactionType string
 
 	Transaction struct {
-		ID              int64
-		UserID          int64
-		Description     string
-		Type            TransactionType
-		Amount          int64
-		Category        string
-		IsShared        bool
-		GroupID         int64
-		TransactionDate time.Time
-		CreatedAt       time.Time
+		ID              int64           `json:"id"`
+		UserID          int64           `json:"user_id"`
+		Description     string          `json:"description"`
+		Type            TransactionType `json:"type"`
+		Amount          int64           `json:"amount"`
+		Category        string          `json:"category"`
+		IsShared        bool            `json:"is_shared"`
+		GroupID         int64           `json:"group_id"`
+		TransactionDate time.Time       `json:"transaction_date"`
+		CreatedAt       time.Time       `json:"created_at"`
 	}
 )
 

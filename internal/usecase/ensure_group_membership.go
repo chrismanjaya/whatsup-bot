@@ -2,9 +2,10 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
+	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/port"
+	"whatsup-bot/internal/utils"
 )
 
 type EnsureGroupMembershipUseCase struct {
@@ -20,13 +21,13 @@ func NewEnsureGroupMembershipUseCase(userRepo port.UserRepository, groupRepo por
 func (uc *EnsureGroupMembershipUseCase) Execute(ctx context.Context, senderJID string, groupID int64) error {
 	user, err := uc.userRepo.FindByJID(ctx, senderJID)
 	if err != nil {
-		return fmt.Errorf("lookup user failed: %w", err)
+		return utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
 	}
 	if user == nil {
 		return nil
 	}
 	if err := uc.groupRepo.AddMember(ctx, groupID, user.ID); err != nil {
-		return fmt.Errorf("add member failed: %w", err)
+		return utils.WrapStd(constant.ErrInternal, "add member failed", err)
 	}
 	return nil
 }

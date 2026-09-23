@@ -3,10 +3,10 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"whatsup-bot/internal/domain"
+	"whatsup-bot/internal/utils"
 )
 
 type TransactionRepo struct {
@@ -24,11 +24,11 @@ func (r *TransactionRepo) Save(ctx context.Context, tx *domain.Transaction) erro
 		tx.UserID, tx.Description, tx.Type, tx.Amount, tx.Category, tx.IsShared, nullableGroupID(tx.GroupID), tx.TransactionDate, tx.CreatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("insert transaction failed: %w", err)
+		return utils.Wrap(err, "insert transaction failed")
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("get last insert id failed: %w", err)
+		return utils.Wrap(err, "get last insert id failed")
 	}
 	tx.ID = id
 	return nil
@@ -41,7 +41,7 @@ func (r *TransactionRepo) FindByUser(ctx context.Context, userID int64, since ti
 		userID, since,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query transactions: %w", err)
+		return nil, utils.Wrap(err, "query transactions")
 	}
 	defer rows.Close()
 	return scanTransactions(rows)
@@ -54,7 +54,7 @@ func (r *TransactionRepo) FindByGroup(ctx context.Context, groupID int64, since 
 		groupID, since,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query transactions: %w", err)
+		return nil, utils.Wrap(err, "query transactions")
 	}
 	defer rows.Close()
 	return scanTransactions(rows)
@@ -68,7 +68,7 @@ func scanTransactions(rows *sql.Rows) ([]*domain.Transaction, error) {
 		var groupID sql.NullInt64
 
 		if err := rows.Scan(&tx.ID, &tx.UserID, &tx.Description, &txType, &tx.Amount, &tx.Category, &tx.IsShared, &groupID, &tx.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan transaction: %w", err)
+			return nil, utils.Wrap(err, "scan transaction")
 		}
 		tx.Type = domain.TransactionType(txType)
 		if groupID.Valid {

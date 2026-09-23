@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,18 +23,19 @@ import (
 
 	"whatsup-bot/internal/adapter/gemini"
 	"whatsup-bot/internal/adapter/sqlite"
+	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/usecase"
+	"whatsup-bot/internal/utils"
 )
 
 func main() {
 	ctx := context.Background()
 
-	logHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-	slog.SetDefault(slog.New(logHandler))
+	utils.SetupLogger()
 
 	appDB, err := sqlite.Open("whatsup.db")
 	if err != nil {
-		panic(err)
+		utils.Fatal("open sqlite db failed", err)
 	}
 
 	userRepo := sqlite.NewUserRepo(appDB)
@@ -45,7 +47,7 @@ func main() {
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		panic(err)
+		utils.Fatal("create gemini client failed", err)
 	}
 	geminiModel := os.Getenv("GEMINI_MODEL")
 	if geminiModel == "" {
@@ -62,11 +64,11 @@ func main() {
 	dbLog := waLog.Stdout("Database", "INFO", true)
 	waContainer, err := sqlstore.New(ctx, "sqlite3", "file:whatsmeow.db?_foreign_keys=on", dbLog)
 	if err != nil {
-		panic(err)
+		utils.Fatal("open whatsmeow store failed", err)
 	}
 	deviceStore, err := waContainer.GetFirstDevice(ctx)
 	if err != nil {
-		panic(err)
+		utils.Fatal("get whatsmeow device failed", err)
 	}
 	clientLog := waLog.Stdout("Client", "INFO", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
@@ -98,13 +100,13 @@ func main() {
 			}
 			gid, err := ensureGroup.Execute(ctx, chatJID.String(), groupName)
 			if err != nil {
-				fmt.Println("ensure group failed:", err)
+				utils.LogError("ensure group failed", err, "group_jid", chatJID.String())
 				return
 			}
 			groupID = gid
 
 			if err := ensureMembership.Execute(ctx, senderJID, groupID); err != nil {
-				fmt.Println("ensure membership failed:", err)
+				utils.LogError("ensure membership failed", err, "sender", senderJID, "group_id", groupID)
 			}
 		}
 
@@ -115,14 +117,14 @@ func main() {
 
 		msg := &waE2E.Message{Conversation: proto.String(reply)}
 		if _, err := client.SendMessage(ctx, chatJID, msg); err != nil {
-			fmt.Println("send reply failed:", err)
+			utils.LogError("send reply failed", err, "chat_jid", chatJID.String())
 		}
 	})
 
 	if client.Store.ID == nil {
 		qrChan, _ := client.GetQRChannel(ctx)
 		if err := client.Connect(); err != nil {
-			panic(err)
+			utils.Fatal("connect whatsmeow client failed", err)
 		}
 		for evt := range qrChan {
 			if evt.Event == "code" {
@@ -134,7 +136,7 @@ func main() {
 		}
 	} else {
 		if err := client.Connect(); err != nil {
-			panic(err)
+			utils.Fatal("connect whatsmeow client failed", err)
 		}
 	}
 
@@ -169,8 +171,8 @@ func handleMessage(
 		}
 		reply, err := registerUser.Execute(ctx, senderJID, parts[1], parts[2])
 		if err != nil {
-			slog.Error("register failed", "sender", senderJID, "error", err)
-			return "Something went wrong registering you. Try again."
+			utils.LogError("register failed", err, "sender", senderJID)
+			return replyForError(err)
 		}
 		slog.Info("user registered", "sender", senderJID, "name", parts[1])
 		return reply
@@ -179,8 +181,8 @@ func handleMessage(
 	if text == "split" && isGroup {
 		reply, err := computeSplit.Execute(ctx, groupID)
 		if err != nil {
-			slog.Error("split failed", "group_id", groupID, "error", err)
-			return "Couldn't compute the split right now."
+			utils.LogError("split failed", err, "group_id", groupID)
+			return replyForError(err)
 		}
 		slog.Info("split computed", "group_id", groupID)
 		return reply
@@ -188,12 +190,33 @@ func handleMessage(
 
 	reply, recorded, err := recordTx.Execute(ctx, senderJID, text, isGroup, groupID)
 	if err != nil {
-		slog.Error("record transaction failed", "sender", senderJID, "error", err)
-		if strings.Contains(err.Error(), "UNAVAILABLE") || strings.Contains(err.Error(), "503") {
-			return "The service is a bit busy right now, please try sending that again in a moment."
-		}
-		return "Something went wrong recording that."
+		utils.LogError("record transaction failed", err, "sender", senderJID)
+		return replyForError(err)
 	}
 	slog.Info("transaction processed", "sender", senderJID, "is_group", isGroup, "recorded", recorded)
 	return reply
+}
+
+// replyForError maps a usecase's classified error to the message shown to
+// the user, keeping that mapping in one place instead of per call site. The
+// numeric error code is appended so a user can report it without exposing
+// any internal detail — a developer can look up what it means from there.
+func replyForError(err error) string {
+	msg := "Something went wrong. Please try again."
+	switch {
+	case errors.Is(err, constant.ErrAlreadyExists):
+		msg = "You're already registered."
+	case errors.Is(err, constant.ErrNotFound):
+		msg = "Please register first: register <name> <email>"
+	case errors.Is(err, constant.ErrInvalidRequest):
+		msg = "I can only help track income and expenses. Try: \"spent 50k on lunch\""
+	case errors.Is(err, constant.ErrServiceUnavailable):
+		msg = "The service is a bit busy right now, please try sending that again in a moment."
+	}
+
+	code := constant.ErrInternal.Code
+	if c, ok := utils.CodeOf(err); ok {
+		code = c.Code
+	}
+	return fmt.Sprintf("%s (Error code: %d)", msg, code)
 }

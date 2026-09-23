@@ -1,5 +1,7 @@
 package gemini
 
+import "whatsup-bot/internal/domain"
+
 type geminiResponse struct {
 	Valid       bool   `json:"valid"`
 	Type        string `json:"type"`
@@ -7,4 +9,12 @@ type geminiResponse struct {
 	Category    string `json:"category"`
 	Description string `json:"description"`
 	Date        string `json:"date"`
+}
+
+func categoryEnum() []string {
+	values := make([]string, len(domain.AllCategories))
+	for i, c := range domain.AllCategories {
+		values[i] = c.String()
+	}
+	return values
 }

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -62,12 +63,18 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		}
 	}
 
+	category, catErr := domain.ParseCategory(parsed.Category)
+	if catErr != nil {
+		slog.Warn("invalid category from gemini, defaulting to other", "category", parsed.Category, "error", catErr)
+		category = domain.CategoryOther
+	}
+
 	tx := &domain.Transaction{
 		UserID:          user.ID,
 		Description:     description,
 		Type:            txType,
 		Amount:          parsed.Amount,
-		Category:        parsed.Category,
+		Category:        category,
 		IsShared:        isShared,
 		GroupID:         groupID,
 		TransactionDate: transactionDate,
@@ -96,7 +103,7 @@ func renderTransactionReply(tx *domain.Transaction) string {
 	replacer := strings.NewReplacer(
 		"[[transaction_type_str]]", typeStr,
 		"[[transaction_description]]", titleCase(tx.Description),
-		"[[transaction_category]]", titleCase(tx.Category),
+		"[[transaction_category]]", titleCase(tx.Category.String()),
 		"[[transaction_amount_formatted]]", "IDR "+formatAmount(tx.Amount),
 		"[[transaction_date_formatted]]", tx.TransactionDate.Format("02 Jan 2006"),
 	)

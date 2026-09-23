@@ -23,31 +23,25 @@ type Parser struct {
 func NewParser(client *genai.Client, model string) *Parser {
 	return &Parser{client: client, model: model}
 }
-
 func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage, error) {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		loc = time.UTC
 	}
 	today := time.Now().In(loc).Format("2006-01-02")
-	// thinkingBudget := int32(0)
-	systemInstruction := fmt.Sprintf(systemInstructionTemplate, today, today)
-
-	slog.Debug("gemini system instruction built", "today", today, "instruction", systemInstruction)
+	categories := categoryEnum()
+	systemInstruction := fmt.Sprintf(systemInstructionTemplate, today, strings.Join(categories, ", "), today)
 
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(systemInstruction, genai.RoleUser),
 		ResponseMIMEType:  "application/json",
-		// ThinkingConfig: &genai.ThinkingConfig{
-		// 	ThinkingBudget: &thinkingBudget,
-		// },
 		ResponseSchema: &genai.Schema{
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{
 				"valid":       {Type: genai.TypeBoolean},
 				"type":        {Type: genai.TypeString, Enum: []string{"CR", "DB"}},
 				"amount":      {Type: genai.TypeInteger},
-				"category":    {Type: genai.TypeString},
+				"category":    {Type: genai.TypeString, Enum: categories},
 				"description": {Type: genai.TypeString},
 				"date":        {Type: genai.TypeString},
 			},
@@ -86,8 +80,8 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 	raw := strings.TrimSpace(result.Text())
 	var gr geminiResponse
 	if err := json.Unmarshal([]byte(raw), &gr); err != nil {
-		utils.LogError("failed to parse gemini response", err, "raw", raw)
-		return nil, utils.WrapStd(constant.ErrParseFailed, fmt.Sprintf("failed to parse gemini response %q", raw), err)
+		slog.Error("failed to parse gemini response", "raw", raw, "error", err)
+		return nil, fmt.Errorf("failed to parse gemini response %q: %w", raw, err)
 	}
 
 	slog.Info("gemini parsed message",

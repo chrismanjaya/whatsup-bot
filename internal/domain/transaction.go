@@ -19,7 +19,7 @@ type (
 		Description     string          `json:"description"`
 		Type            TransactionType `json:"type"`
 		Amount          int64           `json:"amount"`
-		Category        string          `json:"category"`
+		Category        Category        `json:"category"`
 		IsShared        bool            `json:"is_shared"`
 		GroupID         int64           `json:"group_id"`
 		TransactionDate time.Time       `json:"transaction_date"`

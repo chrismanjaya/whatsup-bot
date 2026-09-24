@@ -136,3 +136,49 @@ func nullableGroupID(id int64) interface{} {
 	}
 	return id
 }
+
+// ListByUserBetween compares on the stored local date (the first 10 chars of
+// transaction_date, "YYYY-MM-DD") rather than the full timestamp, since
+// timestamps are stored as text with a UTC offset and only compare correctly
+// when the offsets match.
+func (r *TransactionRepo) ListByUserBetween(ctx context.Context, userID int64, from, to time.Time, limit, offset int) ([]*domain.Transaction, int, error) {
+	const dateFmt = "2006-01-02"
+	fromStr, toStr := from.Format(dateFmt), to.Format(dateFmt)
+
+	var total int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM transactions
+		 WHERE user_id = ? AND substr(transaction_date, 1, 10) >= ? AND substr(transaction_date, 1, 10) < ?`,
+		userID, fromStr, toStr,
+	).Scan(&total); err != nil {
+		return nil, 0, utils.Wrap(err, "count transactions")
+	}
+
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, user_id, description, type, amount, category, is_shared, group_id, transaction_date, created_at
+		 FROM transactions
+		 WHERE user_id = ? AND substr(transaction_date, 1, 10) >= ? AND substr(transaction_date, 1, 10) < ?
+		 ORDER BY transaction_date ASC, id ASC LIMIT ? OFFSET ?`,
+		userID, fromStr, toStr, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, utils.Wrap(err, "query transactions")
+	}
+	defer rows.Close()
+
+	var results []*domain.Transaction
+	for rows.Next() {
+		var tx domain.Transaction
+		var txType string
+		var groupID sql.NullInt64
+		if err := rows.Scan(&tx.ID, &tx.UserID, &tx.Description, &txType, &tx.Amount, &tx.Category, &tx.IsShared, &groupID, &tx.TransactionDate, &tx.CreatedAt); err != nil {
+			return nil, 0, utils.Wrap(err, "scan transaction")
+		}
+		tx.Type = domain.TransactionType(txType)
+		if groupID.Valid {
+			tx.GroupID = groupID.Int64
+		}
+		results = append(results, &tx)
+	}
+	return results, total, rows.Err()
+}

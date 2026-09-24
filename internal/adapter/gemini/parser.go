@@ -79,6 +79,44 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 	}, nil
 }
 
+func (p *Parser) ParseQuery(ctx context.Context, rawText string) (*port.QueryIntent, error) {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		loc = time.UTC
+	}
+	today := time.Now().In(loc).Format("2006-01-02")
+	systemInstruction := fmt.Sprintf(queryInstructionTemplate, today, today, today)
+
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: genai.NewContentFromText(systemInstruction, genai.RoleUser),
+		ResponseMIMEType:  "application/json",
+		ResponseSchema: &genai.Schema{
+			Type: genai.TypeObject,
+			Properties: map[string]*genai.Schema{
+				"is_query":   {Type: genai.TypeBoolean},
+				"start_date": {Type: genai.TypeString},
+				"end_date":   {Type: genai.TypeString},
+			},
+			Required: []string{"is_query", "start_date", "end_date"},
+		},
+	}
+
+	raw, err := p.generate(ctx, config, rawText, "gemini query request failed")
+	if err != nil {
+		return nil, err
+	}
+
+	var qr geminiQueryResponse
+	if err := json.Unmarshal([]byte(raw), &qr); err != nil {
+		slog.Error("failed to parse gemini query response", "raw", raw, "error", err)
+		return nil, fmt.Errorf("failed to parse gemini query response %q: %w", raw, err)
+	}
+
+	slog.Info("gemini parsed query", "is_query", qr.IsQuery, "start_date", qr.StartDate, "end_date", qr.EndDate)
+
+	return &port.QueryIntent{IsQuery: qr.IsQuery, StartDate: qr.StartDate, EndDate: qr.EndDate}, nil
+}
+
 func (p *Parser) ParseAmend(ctx context.Context, rawText string, current *port.CurrentTransaction) (*port.AmendResult, error) {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {

@@ -31,5 +31,11 @@ Reply to a bot transaction confirmation to edit or delete it — no visible tran
 - AmendTransactionUseCase (internal/usecase/amend_transaction.go) looks up the transaction by wa_message_id, checks ownership, then calls MessageParser.ParseAmend (Gemini) with the transaction's current fields to decide action: "update" | "delete" | "none". On update it re-renders the same *EXPENSE*/*INCOME* confirmation template (so a reply to that follow-up also resolves correctly once its own wa_message_id is set), on delete it sends a *DELETED* confirmation, and "none" asks the user to clarify.
 - If stanzaID doesn't match any stored wa_message_id (e.g. reply to an unrelated bot message), AmendTransactionUseCase reports handled=false and the router falls back to normal handling instead of erroring.
 
+## Query transactions with paging (done)
+"transaksi tanggal 1 agustus", "transaksi kemarin", "transaksi bulan agustus" list the sender's own transactions (by transaction_date, oldest first), one WhatsApp message per transaction in the normal *EXPENSE*/*INCOME* format, so each can be replied to for update/delete.
+- QueryTransactionsUseCase pre-filters on keywords (queryKeywords) before calling MessageParser.ParseQuery (Gemini), so ordinary transaction messages don't cost an extra model call. It runs after register/split and before RecordTransactionUseCase; handled=false falls through to recording.
+- 10 transactions per page (queryPageSize). When there are more pages, a *PAGE n/N* summary message follows; its wa_message_id is stored in query_pages (with the date range and page). Replying to it ("next"/"lanjut", "prev"/"sebelumnya", "page 3") is resolved by PageTransactionsUseCase, tried in the router right after AmendTransactionUseCase. Command parsing is plain Go (parsePageCommand), no Gemini call.
+- Usecases return []usecase.Reply (Text + optional Tx/Page to link the sent message ID to); the whatsapp handler sends them in order with a short sendInterval pause. Date filtering compares substr(transaction_date,1,10) as text because stored timestamps carry a UTC offset.
+
 ## In progress
 Nothing currently tracked here.

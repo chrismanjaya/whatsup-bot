@@ -27,3 +27,9 @@ func categoryEnum() []string {
 	}
 	return values
 }
+
+type geminiQueryResponse struct {
+	IsQuery   bool   `json:"is_query"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}

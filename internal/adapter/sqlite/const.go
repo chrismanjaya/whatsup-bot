@@ -44,6 +44,19 @@ const (
 		CREATE INDEX IF NOT EXISTS idx_transactions_user_date  ON transactions(user_id, transaction_date);
 		CREATE INDEX IF NOT EXISTS idx_transactions_group_date ON transactions(group_id, transaction_date);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_wa_message_id ON transactions(wa_message_id);
+
+		CREATE TABLE IF NOT EXISTS query_pages (
+			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id       INTEGER NOT NULL,
+			from_date     TEXT NOT NULL,
+			to_date       TEXT NOT NULL,
+			page          INTEGER NOT NULL,
+			wa_message_id TEXT,
+			created_at    DATETIME NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES users(id)
+		);
+
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_query_pages_wa_message_id ON query_pages(wa_message_id);
 		`
 	insertGroupQuery = ``
 )

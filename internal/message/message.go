@@ -28,6 +28,22 @@ const (
 	AmendUnclear        = "I couldn't tell what to change. Reply with the new amount (e.g. \"update to IDR 10000\") or say \"delete\" to remove it."
 )
 
+// Transaction listing and paging.
+const (
+	QueryDateUnclear = "I couldn't tell which date or period you mean. Try: \"transaksi tanggal 1 agustus\", \"transaksi kemarin\" or \"transaksi bulan agustus\"."
+	QueryNoResults   = "No transactions found for %s." // %s: date or period
+
+	PageHeader          = "*PAGE"
+	PageSummaryTemplate = PageHeader + ` [[page]]/[[total_pages]]*
+- Period: *[[period]]*
+- Showing: *[[from_n]]-[[to_n]] of [[total]]* ([[remaining]] more)
+
+_*Reply to this message with "next"/"lanjut", "prev"/"sebelumnya" or a page number (e.g. "page 3") to see more`
+	PageNotOwner   = "Sorry, you can only page through your own transactions."
+	PageUnclear    = "I couldn't tell which page you want. Reply with \"next\"/\"lanjut\", \"prev\"/\"sebelumnya\" or a page number, e.g. \"page 3\"."
+	PageOutOfRange = "Page %d doesn't exist, there are %d page(s) in total." // requested, total pages
+)
+
 // Split.
 const (
 	SplitNoMembers = "No members found for this group."
@@ -66,6 +82,8 @@ var BotReplyPrefixes = []string{
 	"*" + TypeExpense + "*",
 	"*" + TypeIncome + "*",
 	DeletedHeader,
+	PageHeader,
+	"No transactions found",
 	"Welcome",
 	ErrAlreadyRegistered,
 }

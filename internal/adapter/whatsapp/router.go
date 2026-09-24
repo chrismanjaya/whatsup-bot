@@ -31,27 +31,42 @@ type router struct {
 	registerUser *usecase.RegisterUserUseCase
 	recordTx     *usecase.RecordTransactionUseCase
 	amendTx      *usecase.AmendTransactionUseCase
+	queryTx      *usecase.QueryTransactionsUseCase
+	pageTx       *usecase.PageTransactionsUseCase
 	computeSplit *usecase.ComputeSplitUseCase
 }
 
-func (r *router) handle(ctx context.Context, in incoming) (string, *domain.Transaction) {
+// handle returns the replies to send, in order. A reply's Tx or Page tells
+// the handler which row to link the sent message's WhatsApp ID to.
+func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 	text := in.text
 	slog.Info("message received", "sender", in.senderJID, "is_group", in.isGroup, "group_id", in.groupID, "text", text, "stanza_id", in.stanzaID, "quoted_text", in.quotedText)
 
 	if isBotReply(text) {
-		return "", nil
+		return nil
 	}
 
 	if in.stanzaID != "" {
 		reply, tx, handled, err := r.amendTx.Execute(ctx, in.senderJID, in.stanzaID, text)
 		if err != nil {
 			utils.LogError("amend transaction failed", err, "sender", in.senderJID)
-			return replyForError(err), nil
+			return single(replyForError(err), nil)
 		}
 		if handled {
 			slog.Info("transaction amended", "sender", in.senderJID, "stanza_id", in.stanzaID)
-			return reply, tx
+			return single(reply, tx)
 		}
+
+		pageReplies, handled, err := r.pageTx.Execute(ctx, in.senderJID, in.stanzaID, text)
+		if err != nil {
+			utils.LogError("page transactions failed", err, "sender", in.senderJID)
+			return single(replyForError(err), nil)
+		}
+		if handled {
+			slog.Info("transactions paged", "sender", in.senderJID, "stanza_id", in.stanzaID, "messages", len(pageReplies))
+			return pageReplies
+		}
+
 		slog.Warn("reply stanza id not linked to a tracked transaction, falling back to normal handling",
 			"sender", in.senderJID, "stanza_id", in.stanzaID, "quoted_text", in.quotedText)
 	}
@@ -59,34 +74,52 @@ func (r *router) handle(ctx context.Context, in incoming) (string, *domain.Trans
 	if strings.HasPrefix(text, "register ") {
 		parts := strings.Fields(text)
 		if len(parts) < 3 {
-			return message.RegisterUsage, nil
+			return single(message.RegisterUsage, nil)
 		}
 		reply, err := r.registerUser.Execute(ctx, in.senderJID, parts[1], parts[2])
 		if err != nil {
 			utils.LogError("register failed", err, "sender", in.senderJID)
-			return replyForError(err), nil
+			return single(replyForError(err), nil)
 		}
 		slog.Info("user registered", "sender", in.senderJID, "name", parts[1])
-		return reply, nil
+		return single(reply, nil)
 	}
 
 	if text == "split" && in.isGroup {
 		reply, err := r.computeSplit.Execute(ctx, in.groupID)
 		if err != nil {
 			utils.LogError("split failed", err, "group_id", in.groupID)
-			return replyForError(err), nil
+			return single(replyForError(err), nil)
 		}
 		slog.Info("split computed", "group_id", in.groupID)
-		return reply, nil
+		return single(reply, nil)
+	}
+
+	queryReplies, handled, err := r.queryTx.Execute(ctx, in.senderJID, text)
+	if err != nil {
+		utils.LogError("query transactions failed", err, "sender", in.senderJID)
+		return single(replyForError(err), nil)
+	}
+	if handled {
+		slog.Info("transactions listed", "sender", in.senderJID, "messages", len(queryReplies))
+		return queryReplies
 	}
 
 	reply, tx, err := r.recordTx.Execute(ctx, in.senderJID, text, in.isGroup, in.groupID)
 	if err != nil {
 		utils.LogError("record transaction failed", err, "sender", in.senderJID)
-		return replyForError(err), nil
+		return single(replyForError(err), nil)
 	}
 	slog.Info("transaction processed", "sender", in.senderJID, "is_group", in.isGroup, "recorded", tx != nil)
-	return reply, tx
+	return single(reply, tx)
+}
+
+// single wraps one usecase result as the reply list; tx may be nil.
+func single(text string, tx *domain.Transaction) []usecase.Reply {
+	if text == "" {
+		return nil
+	}
+	return []usecase.Reply{{Text: text, Tx: tx}}
 }
 
 func isBotReply(text string) bool {

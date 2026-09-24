@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"strings"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -15,11 +16,15 @@ import (
 	"whatsup-bot/internal/utils"
 )
 
+// sendInterval is the pause between consecutive messages of one response.
+const sendInterval = 250 * time.Millisecond
+
 // Handler is the whatsmeow event handler: it translates WhatsApp events into
 // plain inputs, delegates to the router, and sends the reply back.
 type Handler struct {
 	client           *whatsmeow.Client
 	txRepo           port.TransactionRepository
+	pageRepo         port.QueryPageRepository
 	ensureGroup      *usecase.EnsureGroupUseCase
 	ensureMembership *usecase.EnsureGroupMembershipUseCase
 	router           router
@@ -28,9 +33,12 @@ type Handler struct {
 func NewHandler(
 	client *whatsmeow.Client,
 	txRepo port.TransactionRepository,
+	pageRepo port.QueryPageRepository,
 	registerUser *usecase.RegisterUserUseCase,
 	recordTx *usecase.RecordTransactionUseCase,
 	amendTx *usecase.AmendTransactionUseCase,
+	queryTx *usecase.QueryTransactionsUseCase,
+	pageTx *usecase.PageTransactionsUseCase,
 	ensureGroup *usecase.EnsureGroupUseCase,
 	ensureMembership *usecase.EnsureGroupMembershipUseCase,
 	computeSplit *usecase.ComputeSplitUseCase,
@@ -38,12 +46,15 @@ func NewHandler(
 	return &Handler{
 		client:           client,
 		txRepo:           txRepo,
+		pageRepo:         pageRepo,
 		ensureGroup:      ensureGroup,
 		ensureMembership: ensureMembership,
 		router: router{
 			registerUser: registerUser,
 			recordTx:     recordTx,
 			amendTx:      amendTx,
+			queryTx:      queryTx,
+			pageTx:       pageTx,
 			computeSplit: computeSplit,
 		},
 	}
@@ -113,7 +124,7 @@ func (h *Handler) handleEvent(evt interface{}) {
 		utils.LogError("send typing presence failed", err, "chat_jid", chatJID.String())
 	}
 
-	reply, tx := h.router.handle(ctx, incoming{
+	replies := h.router.handle(ctx, incoming{
 		text:       text,
 		stanzaID:   stanzaID,
 		quotedText: quotedText,
@@ -126,20 +137,33 @@ func (h *Handler) handleEvent(evt interface{}) {
 		utils.LogError("clear typing presence failed", err, "chat_jid", chatJID.String())
 	}
 
-	if reply == "" {
-		return
+	for i, reply := range replies {
+		if i > 0 {
+			// Keep a multi-message listing in order on the recipient's phone.
+			time.Sleep(sendInterval)
+		}
+		h.send(ctx, chatJID, reply)
 	}
+}
 
-	msg := &waE2E.Message{Conversation: proto.String(reply)}
+// send delivers one reply and links the sent message's WhatsApp ID to the
+// transaction or query page it represents, so replying to it can be resolved.
+func (h *Handler) send(ctx context.Context, chatJID types.JID, reply usecase.Reply) {
+	msg := &waE2E.Message{Conversation: proto.String(reply.Text)}
 	resp, err := h.client.SendMessage(ctx, chatJID, msg)
 	if err != nil {
 		utils.LogError("send reply failed", err, "chat_jid", chatJID.String())
 		return
 	}
 
-	if tx != nil {
-		if err := h.txRepo.SetWAMessageID(ctx, tx.ID, resp.ID); err != nil {
-			utils.LogError("set wa message id failed", err, "tx_id", tx.ID)
+	if reply.Tx != nil {
+		if err := h.txRepo.SetWAMessageID(ctx, reply.Tx.ID, resp.ID); err != nil {
+			utils.LogError("set wa message id failed", err, "tx_id", reply.Tx.ID)
+		}
+	}
+	if reply.Page != nil {
+		if err := h.pageRepo.SetWAMessageID(ctx, reply.Page.ID, resp.ID); err != nil {
+			utils.LogError("set query page wa message id failed", err, "page_id", reply.Page.ID)
 		}
 	}
 }

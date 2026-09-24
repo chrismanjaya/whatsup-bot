@@ -26,6 +26,7 @@ func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
 	userRepo := sqlite.NewUserRepo(appDB)
 	txRepo := sqlite.NewTransactionRepo(appDB)
 	groupRepo := sqlite.NewGroupRepo(appDB)
+	pageRepo := sqlite.NewQueryPageRepo(appDB)
 
 	geminiClient, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  cfg.GeminiAPIKey,
@@ -44,9 +45,12 @@ func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
 	whatsapp.NewHandler(
 		client,
 		txRepo,
+		pageRepo,
 		usecase.NewRegisterUserUseCase(userRepo),
 		usecase.NewRecordTransactionUseCase(userRepo, txRepo, parser),
 		usecase.NewAmendTransactionUseCase(userRepo, txRepo, parser),
+		usecase.NewQueryTransactionsUseCase(userRepo, txRepo, pageRepo, parser),
+		usecase.NewPageTransactionsUseCase(userRepo, txRepo, pageRepo),
 		usecase.NewEnsureGroupUseCase(groupRepo),
 		usecase.NewEnsureGroupMembershipUseCase(userRepo, groupRepo),
 		usecase.NewComputeSplitUseCase(groupRepo, txRepo),

@@ -5,6 +5,7 @@ import (
 
 	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
+	"whatsup-bot/internal/message"
 	"whatsup-bot/internal/port"
 	"whatsup-bot/internal/utils"
 )
@@ -39,7 +40,7 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		return "", nil, true, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
 	}
 	if user == nil || user.ID != existing.UserID {
-		return "Sorry, you can only update or delete your own transactions.", nil, true, nil
+		return message.NotTransactionOwner, nil, true, nil
 	}
 
 	amend, err := uc.parser.ParseAmend(ctx, rawText, &port.CurrentTransaction{
@@ -86,6 +87,6 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		return renderTransactionReply(existing), existing, true, nil
 
 	default:
-		return "I couldn't tell what to change. Reply with the new amount (e.g. \"update to IDR 10000\") or say \"delete\" to remove it.", nil, true, nil
+		return message.AmendUnclear, nil, true, nil
 	}
 }

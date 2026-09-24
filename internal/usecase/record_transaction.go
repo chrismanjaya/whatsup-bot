@@ -9,6 +9,7 @@ import (
 
 	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
+	"whatsup-bot/internal/message"
 	"whatsup-bot/internal/port"
 	"whatsup-bot/internal/utils"
 )
@@ -94,40 +95,28 @@ func resolveTransactionDate(dateStr string, fallback time.Time) time.Time {
 	return d
 }
 
-const transactionReplyTemplate = `*[[transaction_type_str]]*
-- Desc: *[[transaction_description]]*
-- Category: *[[transaction_category]]*
-- Amount: *[[transaction_amount_formatted]]*
-- Date: *[[transaction_date_formatted]]*
-
-_*Reply to this message to update or delete this transaction_`
-
-const deletedReplyTemplate = `*DELETED*
-- Desc: *[[transaction_description]]*
-- Amount: *[[transaction_amount_formatted]]*`
-
 func renderDeletedReply(tx *domain.Transaction) string {
 	replacer := strings.NewReplacer(
 		"[[transaction_description]]", titleCase(tx.Description),
-		"[[transaction_amount_formatted]]", "IDR "+formatAmount(tx.Amount),
+		"[[transaction_amount_formatted]]", message.Currency+" "+formatAmount(tx.Amount),
 	)
-	return replacer.Replace(deletedReplyTemplate)
+	return replacer.Replace(message.DeletedReplyTemplate)
 }
 
 func renderTransactionReply(tx *domain.Transaction) string {
-	typeStr := "EXPENSE"
+	typeStr := message.TypeExpense
 	if tx.Type == domain.Income {
-		typeStr = "INCOME"
+		typeStr = message.TypeIncome
 	}
 
 	replacer := strings.NewReplacer(
 		"[[transaction_type_str]]", typeStr,
 		"[[transaction_description]]", titleCase(tx.Description),
 		"[[transaction_category]]", titleCase(tx.Category.String()),
-		"[[transaction_amount_formatted]]", "IDR "+formatAmount(tx.Amount),
+		"[[transaction_amount_formatted]]", message.Currency+" "+formatAmount(tx.Amount),
 		"[[transaction_date_formatted]]", tx.TransactionDate.Format("02 Jan 2006"),
 	)
-	return replacer.Replace(transactionReplyTemplate)
+	return replacer.Replace(message.TransactionReplyTemplate)
 }
 
 func titleCase(s string) string {

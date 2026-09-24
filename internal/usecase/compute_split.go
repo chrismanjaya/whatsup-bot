@@ -8,6 +8,7 @@ import (
 
 	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
+	"whatsup-bot/internal/message"
 	"whatsup-bot/internal/port"
 	"whatsup-bot/internal/utils"
 )
@@ -27,7 +28,7 @@ func (uc *ComputeSplitUseCase) Execute(ctx context.Context, groupID int64) (stri
 		return "", utils.WrapStd(constant.ErrInternal, "list members failed", err)
 	}
 	if len(members) == 0 {
-		return "No members found for this group.", nil
+		return message.SplitNoMembers, nil
 	}
 
 	startOfMonth := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.Local)
@@ -53,15 +54,15 @@ func (uc *ComputeSplitUseCase) Execute(ctx context.Context, groupID int64) (stri
 	share := totalAll / int64(len(members))
 
 	var sb strings.Builder
-	sb.WriteString("This month's household expenses:\n")
+	sb.WriteString(message.SplitHeader)
 	for _, m := range members {
-		sb.WriteString(fmt.Sprintf("%s: Rp%d\n", m.Name, totals[m.ID]))
+		sb.WriteString(fmt.Sprintf(message.SplitMember, m.Name, totals[m.ID]))
 	}
-	sb.WriteString(fmt.Sprintf("Total: Rp%d (Rp%d each for equal split)\n", totalAll, share))
+	sb.WriteString(fmt.Sprintf(message.SplitTotal, totalAll, share))
 
 	for _, m := range members {
 		if diff := totals[m.ID] - share; diff < 0 {
-			sb.WriteString(fmt.Sprintf("%s owes Rp%d to balance out\n", m.Name, -diff))
+			sb.WriteString(fmt.Sprintf(message.SplitOwes, m.Name, -diff))
 		}
 	}
 

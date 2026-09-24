@@ -7,6 +7,7 @@ import (
 
 	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
+	"whatsup-bot/internal/message"
 	"whatsup-bot/internal/port"
 	"whatsup-bot/internal/utils"
 )
@@ -39,5 +40,5 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, jid, name, email str
 		return "", utils.WrapStd(constant.ErrInternal, "failed to save user", err)
 	}
 
-	return fmt.Sprintf("Welcome, %s! You can now log your income/expenses.", name), nil
+	return fmt.Sprintf(message.Welcome, name), nil
 }

@@ -25,13 +25,15 @@ Built with clean architecture principles — business logic is independent of Wh
 
 * whatsup-bot/
    * cmd/
-      * bot/ # entry point, dependency wiring
+      * bot/ # main.go (startup/shutdown) + wire.go (dependency wiring)
    * internal/
+      * config/ # env loading + defaults
+      * message/ # all user-facing reply text and templates
       * domain/ # entities (Transaction, User, Group) — no external deps
       * usecase/ # business logic — depends only on domain + port interfaces
       * port/ # interfaces (repositories, parser, exporter)
       * adapter/
-      * whatsapp/ # whatsmeow integration
+      * whatsapp/ # whatsmeow integration: client/pairing, event handler, message routing
       * gemini/ # LLM-based message parsing
       * sqlite/ # persistence layer
       * sheets/ # Google Sheets export

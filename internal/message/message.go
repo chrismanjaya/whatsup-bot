@@ -38,7 +38,8 @@ const (
 - Period: *[[period]]*
 - Showing: *[[from_n]]-[[to_n]] of [[total]]* ([[remaining]] more)
 
-_*Reply to this message with "next"/"lanjut", "prev"/"sebelumnya" or a page number (e.g. "page 3") to see more`
+_*Reply to this message to see more_`
+
 	PageNotOwner   = "Sorry, you can only page through your own transactions."
 	PageUnclear    = "I couldn't tell which page you want. Reply with \"next\"/\"lanjut\", \"prev\"/\"sebelumnya\" or a page number, e.g. \"page 3\"."
 	PageOutOfRange = "Page %d doesn't exist, there are %d page(s) in total." // requested, total pages

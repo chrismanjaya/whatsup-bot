@@ -99,8 +99,8 @@ func (s *side) add(tx *domain.Transaction) {
 	s.catTotal[tx.Category] += tx.Amount
 }
 
-// topCategory is the most used category by count; ties go to the larger total
-// and then the name, so the result is deterministic.
+// topCategory is the category with the largest total amount; ties go to the
+// higher count and then the name, so the result is deterministic.
 func (s *side) topCategory() domain.Category {
 	cats := make([]domain.Category, 0, len(s.byCat))
 	for c := range s.byCat {
@@ -108,11 +108,11 @@ func (s *side) topCategory() domain.Category {
 	}
 	sort.Slice(cats, func(i, j int) bool {
 		a, b := cats[i], cats[j]
-		if s.byCat[a] != s.byCat[b] {
-			return s.byCat[a] > s.byCat[b]
-		}
 		if s.catTotal[a] != s.catTotal[b] {
 			return s.catTotal[a] > s.catTotal[b]
+		}
+		if s.byCat[a] != s.byCat[b] {
+			return s.byCat[a] > s.byCat[b]
 		}
 		return a < b
 	})

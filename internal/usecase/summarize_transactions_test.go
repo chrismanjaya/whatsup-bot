@@ -41,6 +41,18 @@ func TestRenderSummary(t *testing.T) {
 		}
 	})
 
+	t.Run("top category is by total amount, not count", func(t *testing.T) {
+		got := renderSummary(start, end, []*domain.Transaction{
+			summaryTx(1, domain.Outcome, 10000, domain.CategoryFood, "roti"),
+			summaryTx(2, domain.Outcome, 10000, domain.CategoryFood, "kopi"),
+			summaryTx(3, domain.Outcome, 10000, domain.CategoryFood, "teh"),
+			summaryTx(4, domain.Outcome, 500000, domain.CategoryElectronics, "charger"),
+		})
+		if !strings.Contains(got, "most expense on *Electronics*") {
+			t.Errorf("want Electronics as top category in:\n%s", got)
+		}
+	})
+
 	t.Run("expense only", func(t *testing.T) {
 		got := renderSummary(start, end, []*domain.Transaction{summaryTx(1, domain.Outcome, 25000, domain.CategoryFood, "roti")})
 		for _, want := range []string{"- Income: *none*", "_With most expense on *Food*, and biggest expense is *Roti IDR 25,000*_"} {

@@ -38,7 +38,7 @@ Reply to a bot transaction confirmation to edit or delete it — no visible tran
 - Usecases return []usecase.Reply (Text + optional Tx/Page to link the sent message ID to); the whatsapp handler sends them in order with a short sendInterval pause. Date filtering compares substr(transaction_date,1,10) as text because stored timestamps carry a UTC offset.
 
 ## Summary report (done)
-"summarize this month", "this week report", "laporan bulan agustus" reply with one *SUMMARY* message: expense/income totals and counts, most used category and biggest transaction per side, then every transaction of the period (date, +/- sign, amount, desc).
+"summarize this month", "this week report", "laporan bulan agustus" reply with one *SUMMARY* message: expense/income totals and counts, top category (largest total amount, not most frequent) and biggest transaction per side, then every transaction of the period (date, +/- sign, amount, desc).
 - SummarizeTransactionsUseCase (internal/usecase/summarize_transactions.go) pre-filters on summaryKeywords, then MessageParser.ParseSummary (Gemini) resolves the date range. It runs in the router after register/split and before QueryTransactionsUseCase; handled=false falls through.
 - Max range is 1 month (inclusive, so 1 Aug–31 Aug ok, 1 Aug–1 Sep too long) -> message.SummaryRangeTooLong. Transactions with amount 0 (still awaiting an amount) are left out. A side with no transactions renders as *none* and its insights are dropped; no transactions at all reuses message.QueryNoResults.
 - Fetches everything via ListByUserBetween with limit -1 (SQLite: no limit), no paging.

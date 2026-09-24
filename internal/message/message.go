@@ -8,7 +8,7 @@ const (
 	ErrGeneric            = "Something went wrong. Please try again."
 	ErrAlreadyRegistered  = "You're already registered."
 	ErrNotRegistered      = "Please register first: register <name> <email>"
-	ErrInvalidRequest     = "I can only help track income and expenses. Try: \"spent 50k on lunch\""
+	ErrInvalidRequest     = "I can only help track income and expenses."
 	ErrServiceUnavailable = "The service is a bit busy right now, please try sending that again in a moment."
 
 	// ErrWithCode wraps one of the above with the numeric error code (%d) so
@@ -25,12 +25,12 @@ const (
 // Amend (reply to a confirmation).
 const (
 	NotTransactionOwner = "Sorry, you can only update or delete your own transactions."
-	AmendUnclear        = "I couldn't tell what to change. Reply with the new amount (e.g. \"update to IDR 10000\") or say \"delete\" to remove it."
+	AmendUnclear        = "I couldn't tell what to change. Reply with the new amount or say \"delete\" to remove it."
 )
 
 // Transaction listing and paging.
 const (
-	QueryDateUnclear = "I couldn't tell which date or period you mean. Try: \"transaksi tanggal 1 agustus\", \"transaksi kemarin\" or \"transaksi bulan agustus\"."
+	QueryDateUnclear = "I couldn't tell which date or period you mean?"
 	QueryNoResults   = "No transactions found for %s." // %s: date or period
 
 	PageHeader          = "*PAGE"
@@ -41,7 +41,7 @@ const (
 _*Reply to this message to see more_`
 
 	PageNotOwner   = "Sorry, you can only page through your own transactions."
-	PageUnclear    = "I couldn't tell which page you want. Reply with \"next\"/\"lanjut\", \"prev\"/\"sebelumnya\" or a page number, e.g. \"page 3\"."
+	PageUnclear    = "I couldn't tell which page you want?"
 	PageOutOfRange = "Page %d doesn't exist, there are %d page(s) in total." // requested, total pages
 )
 

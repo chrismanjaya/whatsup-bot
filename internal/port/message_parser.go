@@ -44,8 +44,17 @@ type QueryIntent struct {
 	EndDate   string
 }
 
+// SummaryIntent is the model's reading of a request to summarize a period's
+// transactions. Dates are "YYYY-MM-DD", both inclusive.
+type SummaryIntent struct {
+	IsSummary bool
+	StartDate string
+	EndDate   string
+}
+
 type MessageParser interface {
 	Parse(ctx context.Context, rawText string) (*ParsedMessage, error)
 	ParseQuery(ctx context.Context, rawText string) (*QueryIntent, error)
+	ParseSummary(ctx context.Context, rawText string) (*SummaryIntent, error)
 	ParseAmend(ctx context.Context, rawText string, current *CurrentTransaction) (*AmendResult, error)
 }

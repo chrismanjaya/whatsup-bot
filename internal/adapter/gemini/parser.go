@@ -117,6 +117,44 @@ func (p *Parser) ParseQuery(ctx context.Context, rawText string) (*port.QueryInt
 	return &port.QueryIntent{IsQuery: qr.IsQuery, StartDate: qr.StartDate, EndDate: qr.EndDate}, nil
 }
 
+func (p *Parser) ParseSummary(ctx context.Context, rawText string) (*port.SummaryIntent, error) {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		loc = time.UTC
+	}
+	today := time.Now().In(loc).Format("2006-01-02")
+	systemInstruction := fmt.Sprintf(summaryInstructionTemplate, today, today, today)
+
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: genai.NewContentFromText(systemInstruction, genai.RoleUser),
+		ResponseMIMEType:  "application/json",
+		ResponseSchema: &genai.Schema{
+			Type: genai.TypeObject,
+			Properties: map[string]*genai.Schema{
+				"is_summary": {Type: genai.TypeBoolean},
+				"start_date": {Type: genai.TypeString},
+				"end_date":   {Type: genai.TypeString},
+			},
+			Required: []string{"is_summary", "start_date", "end_date"},
+		},
+	}
+
+	raw, err := p.generate(ctx, config, rawText, "gemini summary request failed")
+	if err != nil {
+		return nil, err
+	}
+
+	var sr geminiSummaryResponse
+	if err := json.Unmarshal([]byte(raw), &sr); err != nil {
+		slog.Error("failed to parse gemini summary response", "raw", raw, "error", err)
+		return nil, fmt.Errorf("failed to parse gemini summary response %q: %w", raw, err)
+	}
+
+	slog.Info("gemini parsed summary", "is_summary", sr.IsSummary, "start_date", sr.StartDate, "end_date", sr.EndDate)
+
+	return &port.SummaryIntent{IsSummary: sr.IsSummary, StartDate: sr.StartDate, EndDate: sr.EndDate}, nil
+}
+
 func (p *Parser) ParseAmend(ctx context.Context, rawText string, current *port.CurrentTransaction) (*port.AmendResult, error) {
 	loc, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {

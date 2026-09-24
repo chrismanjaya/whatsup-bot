@@ -45,6 +45,30 @@ _*Reply to this message to see more_`
 	PageOutOfRange = "Page %d doesn't exist, there are %d page(s) in total." // requested, total pages
 )
 
+// Summary.
+const (
+	SummaryHeader       = "*SUMMARY*"
+	SummaryDateUnclear  = "I couldn't tell which period you want summarized?"
+	SummaryRangeTooLong = "I can only summarize up to 1 month at a time, please pick a shorter period."
+
+	SummaryTemplate = SummaryHeader + ` [[period]]
+- Expense: [[expense]]
+- Income: [[income]]
+
+_With [[insights]]_
+
+*Detail of [[count]] [[transactions_word]]*
+[[details]]`
+
+	SummaryNone       = "*none*"
+	SummaryTotal      = "*%s %s* from *%d %s*"          // currency, amount, count, "transaction(s)"
+	SummaryTopExpense = "most expense on *%s*"          // category
+	SummaryTopIncome  = "income from *%s*"              // category
+	SummaryBigExpense = "biggest expense is *%s %s %s*" // description, currency, amount
+	SummaryBigIncome  = "biggest income is *%s %s %s*"  // description, currency, amount
+	SummaryDetailLine = "- `%s: %s%s %s %s`"            // date, sign, currency, amount, description
+)
+
 // Split.
 const (
 	SplitNoMembers = "No members found for this group."
@@ -93,6 +117,7 @@ var BotReplyPrefixes = []string{
 	AmountPromptHeader,
 	DeletedHeader,
 	PageHeader,
+	SummaryHeader,
 	"No transactions found",
 	"Welcome",
 	ErrAlreadyRegistered,

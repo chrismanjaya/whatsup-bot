@@ -33,3 +33,9 @@ type geminiQueryResponse struct {
 	StartDate string `json:"start_date"`
 	EndDate   string `json:"end_date"`
 }
+
+type geminiSummaryResponse struct {
+	IsSummary bool   `json:"is_summary"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}

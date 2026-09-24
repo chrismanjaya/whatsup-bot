@@ -134,8 +134,13 @@ func listPage(ctx context.Context, txRepo port.TransactionRepository, pageRepo p
 }
 
 func looksLikeQuery(text string) bool {
+	return containsAny(text, queryKeywords)
+}
+
+// containsAny reports whether text contains any of keywords, ignoring case.
+func containsAny(text string, keywords []string) bool {
 	lower := strings.ToLower(text)
-	for _, k := range queryKeywords {
+	for _, k := range keywords {
 		if strings.Contains(lower, k) {
 			return true
 		}

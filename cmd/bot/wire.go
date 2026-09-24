@@ -49,6 +49,7 @@ func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
 		usecase.NewRegisterUserUseCase(userRepo),
 		usecase.NewRecordTransactionUseCase(userRepo, txRepo, parser),
 		usecase.NewAmendTransactionUseCase(userRepo, txRepo, parser),
+		usecase.NewSummarizeTransactionsUseCase(userRepo, txRepo, parser),
 		usecase.NewQueryTransactionsUseCase(userRepo, txRepo, pageRepo, parser),
 		usecase.NewPageTransactionsUseCase(userRepo, txRepo, pageRepo),
 		usecase.NewEnsureGroupUseCase(groupRepo),

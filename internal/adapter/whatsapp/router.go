@@ -31,6 +31,7 @@ type router struct {
 	registerUser *usecase.RegisterUserUseCase
 	recordTx     *usecase.RecordTransactionUseCase
 	amendTx      *usecase.AmendTransactionUseCase
+	summarizeTx  *usecase.SummarizeTransactionsUseCase
 	queryTx      *usecase.QueryTransactionsUseCase
 	pageTx       *usecase.PageTransactionsUseCase
 	computeSplit *usecase.ComputeSplitUseCase
@@ -93,6 +94,16 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 		}
 		slog.Info("split computed", "group_id", in.groupID)
 		return single(reply, nil)
+	}
+
+	summary, handled, err := r.summarizeTx.Execute(ctx, in.senderJID, text)
+	if err != nil {
+		utils.LogError("summarize transactions failed", err, "sender", in.senderJID)
+		return single(replyForError(err), nil)
+	}
+	if handled {
+		slog.Info("transactions summarized", "sender", in.senderJID)
+		return single(summary, nil)
 	}
 
 	queryReplies, handled, err := r.queryTx.Execute(ctx, in.senderJID, text)

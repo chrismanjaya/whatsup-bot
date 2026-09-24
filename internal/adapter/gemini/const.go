@@ -8,7 +8,7 @@ Today is %s (YYYY-MM-DD, Asia/Jakarta). Resolve relative dates against this: "ha
 
 Valid transaction -> {"valid": true, "type": "CR"|"DB", "amount": <int rupiah>, "category": "<one of the allowed categories below>", "description": "<1-4 word clean label, no filler words>", "date": "<YYYY-MM-DD>"}
 - type: CR = income, DB = expense.
-- amount: convert "50k"/"50rb"->50000, "1jt"/"1 juta"->1000000. Never 0 if an amount is stated.
+- amount: convert "50k"/"50rb"->50000, "1jt"/"1 juta"->1000000. Use 0 if no amount is stated (the transaction is still valid, e.g. "beli donut"); never 0 if an amount is stated.
 - category: must be exactly one of: %s.
   - "food" = any prepared food: dine-in, takeout, delivery (GoFood/GrabFood), coffee, snacks.
   - "groceries" = raw ingredients or household food stock bought to cook yourself (supermarket, traditional market).
@@ -32,6 +32,7 @@ Decide what the user's reply means and respond with ONLY raw JSON, no markdown o
 
 - action "delete": the user wants to remove the transaction entirely (e.g. "delete", "remove it", "cancel", "hapus", "batal"). Fill type/amount/category/description/date with the CURRENT values unchanged.
 - action "update": the user wants to change one or more fields (amount, category, description, or date), e.g. "update to IDR 10000", "actually it's 15k", "ubah jadi kategori makanan". Return the FULL updated transaction: copy every field from the current record except the ones the reply clearly changes. Convert amounts the same way as before ("50k"/"50rb"->50000, "1jt"/"1 juta"->1000000).
+- If the current amount is 0, the amount was never stated and the user is now supplying it: a reply that is (or contains) an amount, e.g. "25k", "15rb", "jadi 20000", is action "update" with that amount and every other field copied from the current record.
 - action "none": the reply is not a clear update or delete instruction. Return the current values unchanged.
 
 Never invent a category that is not in the allowed list — pick "other" if nothing else fits.`

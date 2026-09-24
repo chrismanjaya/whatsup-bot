@@ -69,6 +69,14 @@ const (
 
 _*Reply to this message to update or delete this transaction_`
 
+	AmountPromptHeader   = "*AMOUNT NEEDED*"
+	AmountPromptTemplate = AmountPromptHeader + `
+- Desc: *[[transaction_description]]*
+- Category: *[[transaction_category]]*
+- Date: *[[transaction_date_formatted]]*
+
+How much was it?`
+
 	DeletedHeader        = "*DELETED*"
 	DeletedReplyTemplate = DeletedHeader + `
 - Desc: *[[transaction_description]]*
@@ -82,6 +90,7 @@ _*Reply to this message to update or delete this transaction_`
 var BotReplyPrefixes = []string{
 	"*" + TypeExpense + "*",
 	"*" + TypeIncome + "*",
+	AmountPromptHeader,
 	DeletedHeader,
 	PageHeader,
 	"No transactions found",

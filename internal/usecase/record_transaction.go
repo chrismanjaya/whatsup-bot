@@ -73,6 +73,9 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		return "", nil, utils.WrapStd(constant.ErrInternal, "save failed", err)
 	}
 
+	if tx.Amount <= 0 {
+		return renderAmountPrompt(tx), tx, nil
+	}
 	return renderTransactionReply(tx), tx, nil
 }
 
@@ -101,6 +104,17 @@ func renderDeletedReply(tx *domain.Transaction) string {
 		"[[transaction_amount_formatted]]", message.Currency+" "+formatAmount(tx.Amount),
 	)
 	return replacer.Replace(message.DeletedReplyTemplate)
+}
+
+// renderAmountPrompt asks for the missing amount of a transaction saved with
+// amount 0. Replying to it goes through the amend flow, which fills it in.
+func renderAmountPrompt(tx *domain.Transaction) string {
+	replacer := strings.NewReplacer(
+		"[[transaction_description]]", titleCase(tx.Description),
+		"[[transaction_category]]", titleCase(tx.Category.String()),
+		"[[transaction_date_formatted]]", tx.TransactionDate.Format("02 Jan 2006"),
+	)
+	return replacer.Replace(message.AmountPromptTemplate)
 }
 
 func renderTransactionReply(tx *domain.Transaction) string {

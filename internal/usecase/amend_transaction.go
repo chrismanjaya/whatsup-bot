@@ -84,9 +84,15 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		if err := uc.txRepo.Update(ctx, existing); err != nil {
 			return "", nil, true, utils.WrapStd(constant.ErrInternal, "update failed", err)
 		}
+		if existing.Amount <= 0 {
+			return renderAmountPrompt(existing), existing, true, nil
+		}
 		return renderTransactionReply(existing), existing, true, nil
 
 	default:
+		if existing.Amount <= 0 {
+			return renderAmountPrompt(existing), existing, true, nil
+		}
 		return message.AmendUnclear, nil, true, nil
 	}
 }

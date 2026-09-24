@@ -164,7 +164,7 @@ func renderSummary(start, end time.Time, txs []*domain.Transaction) string {
 			sign = "+"
 		}
 		lines = append(lines, fmt.Sprintf(message.SummaryDetailLine,
-			tx.TransactionDate.Format("2/1"), sign, message.Currency, formatAmount(tx.Amount), titleCase(tx.Description)))
+			tx.TransactionDate.Format("2/1"), sign, formatAmount(tx.Amount), titleCase(tx.Description)))
 	}
 
 	return strings.NewReplacer(

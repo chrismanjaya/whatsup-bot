@@ -66,7 +66,7 @@ _With [[insights]]_
 	SummaryTopIncome  = "income from *%s*"              // category
 	SummaryBigExpense = "biggest expense is *%s %s %s*" // description, currency, amount
 	SummaryBigIncome  = "biggest income is *%s %s %s*"  // description, currency, amount
-	SummaryDetailLine = "- `%s: %s%s %s %s`"            // date, sign, currency, amount, description
+	SummaryDetailLine = "- `%s: %s%s %s`"               // date, sign, currency, amount, description
 )
 
 // Split.

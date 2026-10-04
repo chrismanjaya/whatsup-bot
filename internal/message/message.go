@@ -86,12 +86,8 @@ const (
 - Category: *[[transaction_category]]*
 - Amount: *[[transaction_amount_formatted]]*
 - Date: *[[transaction_date_formatted]]*
-[[quip]]
-_*Reply to this message to update or delete this transaction_`
 
-	// QuipLine renders Frankie's comment inside TransactionReplyTemplate's
-	// [[quip]] slot. An empty quip leaves the template exactly as before.
-	QuipLine = "\n%s\n"
+_*Reply to this message to update or delete this transaction_`
 
 	AmountPromptHeader   = "*AMOUNT NEEDED*"
 	AmountPromptTemplate = AmountPromptHeader + `
@@ -118,6 +114,7 @@ var BotReplyPrefixes = []string{
 	DeletedHeader,
 	PageHeader,
 	SummaryHeader,
+	QuipPrefix,
 	"No transactions found",
 	"Welcome",
 	// Error replies are pooled (pools.go), so they have no fixed first line

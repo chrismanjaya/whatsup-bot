@@ -50,14 +50,14 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 	}
 
 	if in.stanzaID != "" {
-		reply, tx, handled, err := r.amendTx.Execute(ctx, in.senderJID, in.stanzaID, text)
+		amendReplies, handled, err := r.amendTx.Execute(ctx, in.senderJID, in.stanzaID, text)
 		if err != nil {
 			utils.LogError("amend transaction failed", err, "sender", in.senderJID)
 			return single(r.replyForError(err, in), nil)
 		}
 		if handled {
-			slog.Info("transaction amended", "sender", in.senderJID, "stanza_id", in.stanzaID)
-			return single(reply, tx)
+			slog.Info("transaction amended", "sender", in.senderJID, "stanza_id", in.stanzaID, "messages", len(amendReplies))
+			return amendReplies
 		}
 
 		pageReplies, handled, err := r.pageTx.Execute(ctx, in.senderJID, in.stanzaID, text)
@@ -68,6 +68,13 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 		if handled {
 			slog.Info("transactions paged", "sender", in.senderJID, "stanza_id", in.stanzaID, "messages", len(pageReplies))
 			return pageReplies
+		}
+
+		if strings.HasPrefix(in.quotedText, message.QuipPrefix) {
+			// A quip isn't linked to its transaction (the confirmation is),
+			// so point the user there instead of treating this as new input.
+			slog.Info("reply to a quip, pointing user to the confirmation", "sender", in.senderJID, "stanza_id", in.stanzaID)
+			return single(r.errorReply(message.PoolReplyToQuip, constant.ErrInvalidRequest.Code, in), nil)
 		}
 
 		slog.Warn("reply stanza id not linked to a tracked transaction, falling back to normal handling",
@@ -118,13 +125,13 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 		return queryReplies
 	}
 
-	reply, tx, err := r.recordTx.Execute(ctx, in.senderJID, text, in.isGroup, in.groupID)
+	recordReplies, err := r.recordTx.Execute(ctx, in.senderJID, text, in.isGroup, in.groupID)
 	if err != nil {
 		utils.LogError("record transaction failed", err, "sender", in.senderJID)
 		return single(r.replyForError(err, in), nil)
 	}
-	slog.Info("transaction processed", "sender", in.senderJID, "is_group", in.isGroup, "recorded", tx != nil)
-	return single(reply, tx)
+	slog.Info("transaction processed", "sender", in.senderJID, "is_group", in.isGroup, "messages", len(recordReplies))
+	return recordReplies
 }
 
 // single wraps one usecase result as the reply list; tx may be nil.
@@ -162,20 +169,26 @@ func (r *router) replyForError(err error, in incoming) string {
 	case errors.Is(err, constant.ErrServiceUnavailable):
 		key = message.PoolServiceUnavailable
 	}
+	code := constant.ErrInternal.Code
+	if c, ok := utils.CodeOf(err); ok {
+		code = c.Code
+	}
+	return r.errorReply(key, code, in)
+}
+
+// errorReply renders a Frankie error reply from pool key, ending with the
+// emoji for code.
+func (r *router) errorReply(key message.PoolKey, code int, in incoming) string {
 	lang := message.ReplyLang
 	if lang == "" {
 		lang = r.persona.Lang(in.senderJID, in.text)
 	}
 	msg := r.persona.Error(key, in.senderJID, lang)
 
-	code := constant.ErrInternal.Code
-	if c, ok := utils.CodeOf(err); ok {
-		code = c.Code
-	}
 	emoji, ok := message.ErrorEmoji[code]
 	if !ok {
 		emoji = message.ErrorEmojiDefault
 	}
-	slog.Info("error reply sent", "sender", in.senderJID, "code", code, "emoji", emoji)
+	slog.Info("error reply sent", "sender", in.senderJID, "code", code, "emoji", emoji, "pool", key)
 	return fmt.Sprintf(message.ErrWithCode, msg, emoji)
 }

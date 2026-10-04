@@ -18,7 +18,7 @@ func fixedPicker(seed uint64, now time.Time) *Picker {
 func TestErrorPoolsComplete(t *testing.T) {
 	keys := []message.PoolKey{
 		message.PoolInvalidRequest, message.PoolNotRegistered, message.PoolAlreadyRegistered,
-		message.PoolServiceUnavailable, message.PoolGeneric,
+		message.PoolServiceUnavailable, message.PoolGeneric, message.PoolReplyToQuip,
 	}
 	for _, k := range keys {
 		for _, l := range allLangs {

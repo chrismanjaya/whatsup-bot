@@ -50,21 +50,42 @@ func newRecordUC(parsed *port.ParsedMessage, picker *persona.Picker) *RecordTran
 	)
 }
 
-func TestRenderTransactionReplyWithoutQuipUnchanged(t *testing.T) {
+func TestRenderTransactionReplyUnchanged(t *testing.T) {
 	tx := &domain.Transaction{
 		Type: domain.Outcome, Description: "nasi goreng", Category: domain.CategoryFood,
 		Amount: 5000, TransactionDate: time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC),
 	}
 	want := "*EXPENSE*\n- Desc: *Nasi Goreng*\n- Category: *Food*\n- Amount: *IDR 5,000*\n- Date: *04 Oct 2026*\n\n_*Reply to this message to update or delete this transaction_"
-	if got := renderTransactionReply(tx, ""); got != want {
-		t.Errorf("reply without quip changed:\n got: %q\nwant: %q", got, want)
+	if got := renderTransactionReply(tx); got != want {
+		t.Errorf("confirmation changed:\n got: %q\nwant: %q", got, want)
 	}
+}
 
-	withQuip := renderTransactionReply(tx, "Frankie wants some too")
-	wantQuip := "- Date: *04 Oct 2026*\n\nFrankie wants some too\n\n_*Reply"
-	if !strings.Contains(withQuip, wantQuip) || !strings.HasPrefix(withQuip, "*EXPENSE*") {
-		t.Errorf("quip not placed above footer:\n%s", withQuip)
+func TestTransactionRepliesQuipIsSeparateAndUnlinked(t *testing.T) {
+	tx := &domain.Transaction{ID: 3, Type: domain.Outcome, Description: "kopi", Category: domain.CategoryFood, Amount: 20000}
+	replies := transactionReplies(tx, "Coffee again? Even creatures need caffeine")
+	if len(replies) != 2 {
+		t.Fatalf("want confirmation + quip, got %d replies", len(replies))
 	}
+	if replies[0].Tx != tx || !strings.HasPrefix(replies[0].Text, "*EXPENSE*") || strings.Contains(replies[0].Text, "Coffee again") {
+		t.Errorf("first reply must be the clean confirmation linked to tx: %+v", replies[0])
+	}
+	if replies[1].Tx != nil || replies[1].Text != message.QuipPrefix+"Coffee again? Even creatures need caffeine" {
+		t.Errorf("second reply must be the prefixed quip, not linked to tx: %+v", replies[1])
+	}
+	if got := transactionReplies(tx, ""); len(got) != 1 {
+		t.Errorf("no quip should mean one reply, got %d", len(got))
+	}
+}
+
+// texts joins the reply texts, for checks that don't care which message
+// a line is in.
+func texts(replies []Reply) string {
+	parts := make([]string, len(replies))
+	for i, r := range replies {
+		parts[i] = r.Text
+	}
+	return strings.Join(parts, "\n---\n")
 }
 
 func TestRecordTransactionQuipRate(t *testing.T) {
@@ -78,10 +99,11 @@ func TestRecordTransactionQuipRate(t *testing.T) {
 	const n = 2000
 	withQuip := 0
 	for i := 0; i < n; i++ {
-		reply, tx, err := uc.Execute(context.Background(), "jid", "beli nasi goreng 5000", false, 0)
-		if err != nil || tx == nil {
+		replies, err := uc.Execute(context.Background(), "jid", "beli nasi goreng 5000", false, 0)
+		if err != nil || len(replies) == 0 || replies[0].Tx == nil {
 			t.Fatalf("Execute: %v", err)
 		}
+		reply := texts(replies)
 		if !strings.HasPrefix(reply, "*EXPENSE*") {
 			t.Fatalf("reply must start with *EXPENSE* for the self-echo guard: %q", reply)
 		}
@@ -102,7 +124,8 @@ func TestRecordTransactionFallbackQuip(t *testing.T) {
 	uc := newRecordUC(parsed, persona.NewWithSource(rand.NewPCG(5, 5), time.Now))
 
 	for i := 0; i < 200; i++ {
-		reply, _, _ := uc.Execute(context.Background(), "jid", "gaji 10jt", false, 0)
+		replies, _ := uc.Execute(context.Background(), "jid", "gaji 10jt", false, 0)
+		reply := texts(replies)
 		for _, q := range message.QuipIncome {
 			if strings.Contains(reply, q) {
 				return // fallback income quip
@@ -119,7 +142,8 @@ func TestRecordTransactionNoQuipOnAmountPrompt(t *testing.T) {
 	}
 	uc := newRecordUC(parsed, persona.NewWithSource(rand.NewPCG(1, 1), time.Now))
 	for i := 0; i < 50; i++ {
-		reply, _, _ := uc.Execute(context.Background(), "jid", "beli donut", false, 0)
+		replies, _ := uc.Execute(context.Background(), "jid", "beli donut", false, 0)
+		reply := texts(replies)
 		if strings.Contains(reply, "Donut time!") {
 			t.Fatalf("amount prompt should not carry a quip: %q", reply)
 		}
@@ -132,7 +156,8 @@ func TestRecordTransactionDropsIndonesianQuip(t *testing.T) {
 		Description: "bunga deposito", Date: "2026-09-15", Quip: "Wah, bunganya cair! Selamat ya, bos",
 	}
 	uc := newRecordUC(parsed, persona.NewWithSource(rand.NewPCG(8, 8), time.Now))
-	reply, _, _ := uc.Execute(context.Background(), "jid", "15/9 deposito 509.589", false, 0)
+	replies, _ := uc.Execute(context.Background(), "jid", "15/9 deposito 509.589", false, 0)
+	reply := texts(replies)
 	if strings.Contains(reply, parsed.Quip) {
 		t.Fatalf("Indonesian model quip should be dropped:\n%s", reply)
 	}
@@ -154,8 +179,9 @@ func TestRecordTransactionIncomeAlwaysQuips(t *testing.T) {
 	}
 	uc := newRecordUC(parsed, persona.NewWithSource(rand.NewPCG(2, 2), time.Now))
 	for i := 0; i < 100; i++ {
-		reply, _, _ := uc.Execute(context.Background(), "jid", "15/9 deposito 509.589", false, 0)
-		if !strings.Contains(reply, parsed.Quip) {
+		replies, _ := uc.Execute(context.Background(), "jid", "15/9 deposito 509.589", false, 0)
+		reply := texts(replies)
+		if len(replies) != 2 || replies[1].Text != message.QuipPrefix+parsed.Quip {
 			t.Fatalf("income without a quip at try %d:\n%s", i, reply)
 		}
 	}
@@ -190,8 +216,9 @@ func TestAmendFillingAmountQuips(t *testing.T) {
 	picker := persona.NewWithSource(rand.NewPCG(4, 4), time.Now)
 
 	uc := NewAmendTransactionUseCase(&fakeUserRepo{user: &domain.User{ID: 1}}, &amendTxRepo{tx: pending}, &amendParser{result: result}, picker)
-	reply, _, handled, err := uc.Execute(context.Background(), "jid", "wa-1", "509589")
-	if err != nil || !handled {
+	replies, handled, err := uc.Execute(context.Background(), "jid", "wa-1", "509589")
+	reply := texts(replies)
+	if err != nil || !handled || len(replies) != 2 || replies[0].Tx == nil {
 		t.Fatalf("Execute: handled=%v err=%v", handled, err)
 	}
 	found := false
@@ -206,9 +233,9 @@ func TestAmendFillingAmountQuips(t *testing.T) {
 
 	// A correction of an existing amount is not new: no quip.
 	pending.Amount = 100000
-	reply, _, _, _ = uc.Execute(context.Background(), "jid", "wa-1", "jadi 509589")
-	if !strings.HasSuffix(reply, "_*Reply to this message to update or delete this transaction_") ||
-		strings.Contains(reply, "\n\n\n") || strings.Count(reply, "\n\n") != 1 {
+	replies, _, _ = uc.Execute(context.Background(), "jid", "wa-1", "jadi 509589")
+	reply = texts(replies)
+	if len(replies) != 1 || !strings.HasSuffix(reply, "_*Reply to this message to update or delete this transaction_") {
 		t.Errorf("correction should render without a quip:\n%s", reply)
 	}
 }

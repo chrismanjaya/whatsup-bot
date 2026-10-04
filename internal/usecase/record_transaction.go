@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -27,26 +26,30 @@ func NewRecordTransactionUseCase(userRepo port.UserRepository, txRepo port.Trans
 	return &RecordTransactionUseCase{userRepo: userRepo, txRepo: txRepo, parser: parser, persona: picker}
 }
 
-func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawText string, isShared bool, groupID int64) (reply string, tx *domain.Transaction, err error) {
+// Execute records a transaction from rawText and returns the replies to
+// send: the confirmation (linked to the transaction, so replying to it can
+// update or delete it), sometimes followed by Frankie's quip as a separate
+// message.
+func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawText string, isShared bool, groupID int64) ([]Reply, error) {
 	user, err := uc.userRepo.FindByJID(ctx, senderJID)
 	if err != nil {
-		return "", nil, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
+		return nil, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
 	}
 	if user == nil {
-		return "", nil, utils.Wrap(constant.ErrNotFound, "user not registered")
+		return nil, utils.Wrap(constant.ErrNotFound, "user not registered")
 	}
 
 	parsed, err := uc.parser.Parse(ctx, rawText)
 	if err != nil {
-		return "", nil, utils.Wrap(err, "parse failed")
+		return nil, utils.Wrap(err, "parse failed")
 	}
 	if !parsed.Valid {
-		return "", nil, utils.Wrap(constant.ErrInvalidRequest, "message is not a financial transaction")
+		return nil, utils.Wrap(constant.ErrInvalidRequest, "message is not a financial transaction")
 	}
 
 	txType, err := domain.ParseTransactionType(parsed.Type)
 	if err != nil {
-		return "", nil, utils.WrapStd(constant.ErrInternal, "invalid type from parser", err)
+		return nil, utils.WrapStd(constant.ErrInternal, "invalid type from parser", err)
 	}
 
 	description := parsed.Description
@@ -60,7 +63,7 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		category = domain.CategoryOther
 	}
 
-	tx = &domain.Transaction{
+	tx := &domain.Transaction{
 		UserID:          user.ID,
 		Description:     description,
 		Type:            txType,
@@ -73,13 +76,26 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 	}
 
 	if err := uc.txRepo.Save(ctx, tx); err != nil {
-		return "", nil, utils.WrapStd(constant.ErrInternal, "save failed", err)
+		return nil, utils.WrapStd(constant.ErrInternal, "save failed", err)
 	}
 
 	if tx.Amount <= 0 {
-		return renderAmountPrompt(tx), tx, nil
+		return []Reply{{Text: renderAmountPrompt(tx), Tx: tx}}, nil
 	}
-	return renderTransactionReply(tx, newTransactionQuip(uc.persona, parsed.Quip, tx, senderJID)), tx, nil
+	return transactionReplies(tx, newTransactionQuip(uc.persona, parsed.Quip, tx, senderJID)), nil
+}
+
+// transactionReplies is a transaction confirmation (linked to tx) followed
+// by quip as its own message (starting with message.QuipPrefix), if there
+// is one. The quip is deliberately not linked to tx: a transaction holds one
+// wa_message_id, which must stay the confirmation's so replying to it keeps
+// working. A reply to the quip is recognized by its prefix in the router.
+func transactionReplies(tx *domain.Transaction, quip string) []Reply {
+	replies := []Reply{{Text: renderTransactionReply(tx), Tx: tx}}
+	if quip != "" {
+		replies = append(replies, Reply{Text: message.QuipPrefix + quip})
+	}
+	return replies
 }
 
 // newTransactionQuip returns Frankie's comment for a newly completed
@@ -147,9 +163,7 @@ func renderAmountPrompt(tx *domain.Transaction) string {
 	return replacer.Replace(message.AmountPromptTemplate)
 }
 
-// renderTransactionReply renders the confirmation for tx. quip is Frankie's
-// optional comment, shown above the footer; pass "" for none.
-func renderTransactionReply(tx *domain.Transaction, quip string) string {
+func renderTransactionReply(tx *domain.Transaction) string {
 	typeStr := message.TypeExpense
 	if tx.Type == domain.Income {
 		typeStr = message.TypeIncome
@@ -161,16 +175,8 @@ func renderTransactionReply(tx *domain.Transaction, quip string) string {
 		"[[transaction_category]]", titleCase(tx.Category.String()),
 		"[[transaction_amount_formatted]]", message.Currency+" "+formatAmount(tx.Amount),
 		"[[transaction_date_formatted]]", tx.TransactionDate.Format("02 Jan 2006"),
-		"[[quip]]", quipLine(quip),
 	)
 	return replacer.Replace(message.TransactionReplyTemplate)
-}
-
-func quipLine(quip string) string {
-	if quip == "" {
-		return ""
-	}
-	return fmt.Sprintf(message.QuipLine, quip)
 }
 
 func titleCase(s string) string {

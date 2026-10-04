@@ -27,22 +27,23 @@ func NewAmendTransactionUseCase(userRepo port.UserRepository, txRepo port.Transa
 // transaction the bot recorded, so the caller can fall back to treating the
 // message as a normal command. tx is the updated transaction on "update" (so
 // the caller can re-associate the new confirmation's WhatsApp message ID
-// with it), and nil for "delete" or "none".
-func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMessageID, rawText string) (reply string, tx *domain.Transaction, handled bool, err error) {
+// with it, via the first reply's Tx), and unlinked for "delete" or "none".
+// A reply that fills in a missing amount may be followed by a quip message.
+func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMessageID, rawText string) (replies []Reply, handled bool, err error) {
 	existing, err := uc.txRepo.FindByWAMessageID(ctx, waMessageID)
 	if err != nil {
-		return "", nil, false, utils.WrapStd(constant.ErrInternal, "lookup transaction failed", err)
+		return nil, false, utils.WrapStd(constant.ErrInternal, "lookup transaction failed", err)
 	}
 	if existing == nil {
-		return "", nil, false, nil
+		return nil, false, nil
 	}
 
 	user, err := uc.userRepo.FindByJID(ctx, senderJID)
 	if err != nil {
-		return "", nil, true, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
+		return nil, true, utils.WrapStd(constant.ErrInternal, "lookup user failed", err)
 	}
 	if user == nil || user.ID != existing.UserID {
-		return message.NotTransactionOwner, nil, true, nil
+		return []Reply{{Text: message.NotTransactionOwner}}, true, nil
 	}
 
 	amend, err := uc.parser.ParseAmend(ctx, rawText, &port.CurrentTransaction{
@@ -53,15 +54,15 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		Date:        existing.TransactionDate.Format("2006-01-02"),
 	})
 	if err != nil {
-		return "", nil, true, utils.Wrap(err, "parse amend failed")
+		return nil, true, utils.Wrap(err, "parse amend failed")
 	}
 
 	switch amend.Action {
 	case "delete":
 		if err := uc.txRepo.Delete(ctx, existing.ID); err != nil {
-			return "", nil, true, utils.WrapStd(constant.ErrInternal, "delete failed", err)
+			return nil, true, utils.WrapStd(constant.ErrInternal, "delete failed", err)
 		}
-		return renderDeletedReply(existing), nil, true, nil
+		return []Reply{{Text: renderDeletedReply(existing)}}, true, nil
 
 	case "update":
 		txType, typeErr := domain.ParseTransactionType(amend.Type)
@@ -88,21 +89,21 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		existing.TransactionDate = resolveTransactionDate(amend.Date, existing.TransactionDate)
 
 		if err := uc.txRepo.Update(ctx, existing); err != nil {
-			return "", nil, true, utils.WrapStd(constant.ErrInternal, "update failed", err)
+			return nil, true, utils.WrapStd(constant.ErrInternal, "update failed", err)
 		}
 		if existing.Amount <= 0 {
-			return renderAmountPrompt(existing), existing, true, nil
+			return []Reply{{Text: renderAmountPrompt(existing), Tx: existing}}, true, nil
 		}
 		quip := ""
 		if completesNew {
 			quip = newTransactionQuip(uc.persona, "", existing, senderJID)
 		}
-		return renderTransactionReply(existing, quip), existing, true, nil
+		return transactionReplies(existing, quip), true, nil
 
 	default:
 		if existing.Amount <= 0 {
-			return renderAmountPrompt(existing), existing, true, nil
+			return []Reply{{Text: renderAmountPrompt(existing), Tx: existing}}, true, nil
 		}
-		return message.AmendUnclear, nil, true, nil
+		return []Reply{{Text: message.AmendUnclear}}, true, nil
 	}
 }

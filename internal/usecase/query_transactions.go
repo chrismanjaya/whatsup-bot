@@ -109,7 +109,7 @@ func listPage(ctx context.Context, txRepo port.TransactionRepository, pageRepo p
 
 	replies := make([]Reply, 0, len(txs)+1)
 	for _, tx := range txs {
-		replies = append(replies, Reply{Text: renderTransactionReply(tx, ""), Tx: tx})
+		replies = append(replies, Reply{Text: renderTransactionReply(tx), Tx: tx})
 	}
 	if totalPages == 1 {
 		return replies, nil

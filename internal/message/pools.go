@@ -36,7 +36,13 @@ const (
 	PoolAlreadyRegistered  PoolKey = "already_registered"  // 409
 	PoolServiceUnavailable PoolKey = "service_unavailable" // 503
 	PoolGeneric            PoolKey = "generic"             // 500 and anything unclassified
+	PoolReplyToQuip        PoolKey = "reply_to_quip"       // 400: user replied to a quip instead of the confirmation
 )
+
+// QuipPrefix starts every quip message. It marks the message as Frankie's
+// chatter (not a record), and lets the router recognize a reply to a quip
+// from the quoted text alone, with nothing stored.
+const QuipPrefix = "💬 "
 
 // Placeholders filled in by persona.
 const (
@@ -127,6 +133,20 @@ var ErrorPools = map[PoolKey]map[Lang][]string{
 			"Otak Frankie lagi kepenuhan... tunggu sebentar, terus kirim ulang ya.",
 			"Lab lagi sibuk banget. Coba kirim ulang sebentar lagi.",
 			"*baut kedip-kedip* ...mesinnya butuh istirahat sebentar. Kirim ulang nanti ya.",
+		},
+	},
+	PoolReplyToQuip: {
+		LangEN: {
+			"That was just Frankie chatting, bos. To change a transaction, reply to its confirmation message instead.",
+			"Frankie's small talk can't be edited. Reply to the confirmation message to update or delete the transaction.",
+			"*scratches stitched head* ...that was only a comment. Reply to the message with the transaction details instead.",
+			"Ah, that's just Frankie talking. To fix a transaction, reply to its confirmation message.",
+		},
+		LangID: {
+			"Itu cuma Frankie ngobrol, bos. Untuk ubah transaksi, balas pesan konfirmasinya ya.",
+			"Obrolan Frankie nggak bisa diubah. Balas pesan konfirmasi untuk ubah atau hapus transaksi.",
+			"*garuk kepala jahitan* ...itu cuma komentar. Balas pesan yang berisi detail transaksinya ya.",
+			"Itu cuma Frankie ngomong. Untuk benerin transaksi, balas pesan konfirmasinya.",
 		},
 	},
 	PoolGeneric: {

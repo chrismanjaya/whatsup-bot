@@ -30,14 +30,12 @@ func TestErrorPoolsComplete(t *testing.T) {
 }
 
 func TestQuipPoolsComplete(t *testing.T) {
-	for _, l := range allLangs {
-		if len(message.QuipIncome[l]) == 0 || len(message.QuipExpenseDefault[l]) == 0 {
-			t.Errorf("default quip pools missing language %s", l)
-		}
-		for cat, pool := range message.QuipByCategory {
-			if len(pool[l]) == 0 {
-				t.Errorf("quip pool %q missing language %s", cat, l)
-			}
+	if len(message.QuipIncome) == 0 || len(message.QuipExpenseDefault) == 0 {
+		t.Error("default quip pools are empty")
+	}
+	for cat, pool := range message.QuipByCategory {
+		if len(pool) == 0 {
+			t.Errorf("quip pool %q is empty", cat)
 		}
 	}
 }
@@ -168,6 +166,25 @@ func TestDetectLang(t *testing.T) {
 	}
 }
 
+func TestLangRemembersLastLanguage(t *testing.T) {
+	p := fixedPicker(1, time.Now())
+	if got := p.Lang("u", "509589"); got != message.LangEN {
+		t.Errorf("no history, no words: got %s, want en", got)
+	}
+	if got := p.Lang("u", "beli kopi 20rb"); got != message.LangID {
+		t.Errorf("indonesian text: got %s, want id", got)
+	}
+	if got := p.Lang("u", "509.589"); got != message.LangID {
+		t.Errorf("bare amount after indonesian: got %s, want id", got)
+	}
+	if got := p.Lang("u", "lunch 50k"); got != message.LangEN {
+		t.Errorf("english text: got %s, want en", got)
+	}
+	if got := p.Lang("other", "509589"); got != message.LangEN {
+		t.Errorf("languages must be per user: got %s, want en", got)
+	}
+}
+
 func TestChance(t *testing.T) {
 	p := fixedPicker(3, time.Now())
 	hits := 0
@@ -179,6 +196,21 @@ func TestChance(t *testing.T) {
 	}
 	if pct := hits * 100 / n; pct < 32 || pct > 38 {
 		t.Errorf("Chance(35) hit %d%%, want about 35%%", pct)
+	}
+}
+
+func TestIsEnglish(t *testing.T) {
+	cases := map[string]bool{
+		"Nasi goreng for 5 ribu?! Where is this place, bos?": true,
+		"Hokben again? Save me some chicken, bos!":           true,
+		"Interest day! Your money works hard 💰":              true,
+		"Wah, Holben! Selamat menikmati ya, bos!":            false,
+		"Makan enak nih, bos":                                false,
+	}
+	for in, want := range cases {
+		if got := IsEnglish(in); got != want {
+			t.Errorf("IsEnglish(%q) = %v, want %v", in, got, want)
+		}
 	}
 }
 
@@ -203,13 +235,13 @@ func TestSanitizeQuip(t *testing.T) {
 
 func TestFallbackQuip(t *testing.T) {
 	p := fixedPicker(9, time.Now())
-	if q := p.FallbackQuip("salary", true, "u", message.LangEN); !contains(message.QuipIncome[message.LangEN], q) {
+	if q := p.FallbackQuip("salary", true, "u"); !contains(message.QuipIncome, q) {
 		t.Errorf("income quip %q not from income pool", q)
 	}
-	if q := p.FallbackQuip("food", false, "u", message.LangID); !contains(message.QuipByCategory["food"][message.LangID], q) {
+	if q := p.FallbackQuip("food", false, "u"); !contains(message.QuipByCategory["food"], q) {
 		t.Errorf("food quip %q not from food pool", q)
 	}
-	if q := p.FallbackQuip("tax", false, "u", message.LangEN); !contains(message.QuipExpenseDefault[message.LangEN], q) {
+	if q := p.FallbackQuip("tax", false, "u"); !contains(message.QuipExpenseDefault, q) {
 		t.Errorf("tax quip %q not from default expense pool", q)
 	}
 }

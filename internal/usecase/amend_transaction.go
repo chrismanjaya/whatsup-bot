@@ -6,6 +6,7 @@ import (
 	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/message"
+	"whatsup-bot/internal/persona"
 	"whatsup-bot/internal/port"
 	"whatsup-bot/internal/utils"
 )
@@ -14,10 +15,11 @@ type AmendTransactionUseCase struct {
 	userRepo port.UserRepository
 	txRepo   port.TransactionRepository
 	parser   port.MessageParser
+	persona  *persona.Picker
 }
 
-func NewAmendTransactionUseCase(userRepo port.UserRepository, txRepo port.TransactionRepository, parser port.MessageParser) *AmendTransactionUseCase {
-	return &AmendTransactionUseCase{userRepo: userRepo, txRepo: txRepo, parser: parser}
+func NewAmendTransactionUseCase(userRepo port.UserRepository, txRepo port.TransactionRepository, parser port.MessageParser, picker *persona.Picker) *AmendTransactionUseCase {
+	return &AmendTransactionUseCase{userRepo: userRepo, txRepo: txRepo, parser: parser, persona: picker}
 }
 
 // Execute handles a reply to a transaction confirmation message identified
@@ -74,6 +76,10 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		if description == "" {
 			description = existing.Description
 		}
+		// A reply that fills in the missing amount completes a new
+		// transaction, so it's treated like one (it can get a quip); any
+		// other update is just a correction and doesn't.
+		completesNew := existing.Amount <= 0 && amend.Amount > 0
 
 		existing.Type = txType
 		existing.Amount = amend.Amount
@@ -87,7 +93,11 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		if existing.Amount <= 0 {
 			return renderAmountPrompt(existing), existing, true, nil
 		}
-		return renderTransactionReply(existing, ""), existing, true, nil
+		quip := ""
+		if completesNew {
+			quip = newTransactionQuip(uc.persona, "", existing, senderJID)
+		}
+		return renderTransactionReply(existing, quip), existing, true, nil
 
 	default:
 		if existing.Amount <= 0 {

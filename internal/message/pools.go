@@ -22,6 +22,11 @@ const (
 	LangID Lang = "id"
 )
 
+// ReplyLang is the language every Frankie reply is written in, to match the
+// English templates. Set it to "" to reply in the language the user wrote
+// in instead (the Indonesian pools below are kept for that).
+const ReplyLang Lang = LangEN
+
 // PoolKey names one pool of reply variants.
 type PoolKey string
 
@@ -140,52 +145,30 @@ var ErrorPools = map[PoolKey]map[Lang][]string{
 	},
 }
 
-// Quip fallbacks: used when a transaction gets a quip (see QuipChancePct)
-// but Gemini didn't return one. Keyed by category; expenses in a category
-// with no pool use QuipExpenseDefault, income uses QuipIncome.
-const QuipChancePct = 35
+// How often a new transaction gets a quip. Income is rarer and good news,
+// so it always gets one; everyday expenses only sometimes, so it doesn't
+// get repetitive.
+const (
+	QuipIncomeChancePct  = 100
+	QuipExpenseChancePct = 35
+)
 
-var QuipByCategory = map[string]map[Lang][]string{
-	"food": {
-		LangEN: {"Smells good from here... save me a bite, bos?", "Eating well keeps the stitches strong 🍽️", "Frankie is hungry now too. Thanks a lot."},
-		LangID: {"Wanginya sampai sini... sisain buat Frankie dong, bos?", "Makan yang bener biar jahitannya kuat 🍽️", "Frankie jadi laper juga nih."},
-	},
-	"groceries": {
-		LangEN: {"Cooking tonight? Frankie will guard the leftovers.", "A stocked fridge is a happy lab 🥬"},
-		LangID: {"Masak malam ini? Frankie jagain sisanya ya.", "Kulkas penuh, lab bahagia 🥬"},
-	},
-	"transport": {
-		LangEN: {"Feeding the metal beast. Vroom ⚡", "Safe trip, bos. Frankie stays and guards the lab."},
-		LangID: {"Kasih makan si kuda besi. Brum ⚡", "Hati-hati di jalan, bos. Frankie jaga lab."},
-	},
-	"utilities": {
-		LangEN: {"Electricity paid! Frankie needs that to stay alive ⚡", "Bills paid, the lab lights stay on."},
-		LangID: {"Listrik lunas! Frankie butuh itu biar tetap hidup ⚡", "Tagihan beres, lampu lab tetap nyala."},
-	},
-	"entertainment": {
-		LangEN: {"Have fun, bos. Even creatures need a break.", "Frankie approves of fun, in moderation 🎬"},
-		LangID: {"Selamat seneng-seneng, bos. Monster juga butuh hiburan.", "Frankie setuju sama hiburan, asal secukupnya 🎬"},
-	},
-	"health": {
-		LangEN: {"Take care of yourself, bos. Frankie knows a thing about patching up.", "Health first. Stitches second."},
-		LangID: {"Jaga kesehatan ya, bos. Frankie ahli soal tambal-menambal.", "Sehat dulu, jahitan belakangan."},
-	},
-	"medicine": {
-		LangEN: {"Get well soon, bos 🩹", "Frankie hopes you feel better soon."},
-		LangID: {"Cepet sembuh ya, bos 🩹", "Semoga cepet enakan, bos."},
-	},
-	"investment": {
-		LangEN: {"Planting coins for the future. Smart, bos 🌱", "Money that works while you sleep. Frankie approves."},
-		LangID: {"Nanam uang buat masa depan. Pinter, bos 🌱", "Uang yang kerja pas kamu tidur. Frankie setuju."},
-	},
+// Quip fallbacks: used when a transaction gets a quip but Gemini didn't
+// return one (or the transaction was completed via a reply, which has no
+// Gemini quip). Keyed by category; expenses in a category with no pool use
+// QuipExpenseDefault, income uses QuipIncome. Quips are always English, to
+// match the English confirmation template they sit in.
+var QuipByCategory = map[string][]string{
+	"food":          {"Smells good from here... save me a bite, bos?", "Eating well keeps the stitches strong 🍽️", "Frankie is hungry now too. Thanks a lot."},
+	"groceries":     {"Cooking tonight? Frankie will guard the leftovers.", "A stocked fridge is a happy lab 🥬"},
+	"transport":     {"Feeding the metal beast. Vroom ⚡", "Safe trip, bos. Frankie stays and guards the lab."},
+	"utilities":     {"Electricity paid! Frankie needs that to stay alive ⚡", "Bills paid, the lab lights stay on."},
+	"entertainment": {"Have fun, bos. Even creatures need a break.", "Frankie approves of fun, in moderation 🎬"},
+	"health":        {"Take care of yourself, bos. Frankie knows a thing about patching up.", "Health first. Stitches second."},
+	"medicine":      {"Get well soon, bos 🩹", "Frankie hopes you feel better soon."},
+	"investment":    {"Planting coins for the future. Smart, bos 🌱", "Money that works while you sleep. Frankie approves."},
 }
 
-var QuipExpenseDefault = map[Lang][]string{
-	LangEN: {"Logged and stitched into the ledger 🔩", "Frankie wrote it down. Nothing escapes this notebook.", "Noted, bos ⚡"},
-	LangID: {"Udah dicatat dan dijahit ke buku ⚡", "Frankie udah catat. Nggak ada yang lolos dari buku ini.", "Siap, bos. Udah dicatat 🔩"},
-}
+var QuipExpenseDefault = []string{"Logged and stitched into the ledger 🔩", "Frankie wrote it down. Nothing escapes this notebook.", "Noted, bos ⚡"}
 
-var QuipIncome = map[Lang][]string{
-	LangEN: {"IT'S ALIVE! Your wallet breathes again 💰", "Money in! Frankie is doing a happy stomp.", "The lab hums with joy. Nice one, bos ⚡"},
-	LangID: {"DOMPETNYA HIDUP! Akhirnya bisa napas lagi 💰", "Uang masuk! Frankie joget-joget nih.", "Lab-nya ikut seneng. Mantap, bos ⚡"},
-}
+var QuipIncome = []string{"IT'S ALIVE! Your wallet breathes again 💰", "Money in! Frankie is doing a happy stomp.", "The lab hums with joy. Nice one, bos ⚡"}

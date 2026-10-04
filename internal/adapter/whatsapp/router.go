@@ -162,7 +162,11 @@ func (r *router) replyForError(err error, in incoming) string {
 	case errors.Is(err, constant.ErrServiceUnavailable):
 		key = message.PoolServiceUnavailable
 	}
-	msg := r.persona.Error(key, in.senderJID, persona.DetectLang(in.text))
+	lang := message.ReplyLang
+	if lang == "" {
+		lang = r.persona.Lang(in.senderJID, in.text)
+	}
+	msg := r.persona.Error(key, in.senderJID, lang)
 
 	code := constant.ErrInternal.Code
 	if c, ok := utils.CodeOf(err); ok {

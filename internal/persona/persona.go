@@ -23,7 +23,8 @@ type Picker struct {
 	mu   sync.Mutex
 	rng  *rand.Rand
 	now  func() time.Time
-	last map[string]int // "<userJID>|<pool id>" -> index last shown
+	last map[string]int          // "<userJID>|<pool id>" -> index last shown
+	lang map[string]message.Lang // userJID -> language of their last message with words
 }
 
 // New returns a Picker with a random seed and the real clock.
@@ -34,7 +35,42 @@ func New() *Picker {
 // NewWithSource returns a Picker with a fixed random source and clock, for
 // deterministic tests.
 func NewWithSource(src rand.Source, now func() time.Time) *Picker {
-	return &Picker{rng: rand.New(src), now: now, last: map[string]int{}}
+	return &Picker{rng: rand.New(src), now: now, last: map[string]int{}, lang: map[string]message.Lang{}}
+}
+
+// Lang returns the language to reply to userJID in. It detects it from text
+// (see DetectLang) and remembers it, so a message with no words to go on,
+// like a bare amount "509589", gets the user's last language instead of
+// defaulting to English.
+func (p *Picker) Lang(userJID, text string) message.Lang {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !hasWords(text) {
+		if l, ok := p.lang[userJID]; ok {
+			return l
+		}
+		return message.LangEN
+	}
+	l := DetectLang(text)
+	p.lang[userJID] = l
+	return l
+}
+
+// hasWords reports whether text has at least one word of 2+ letters, i.e.
+// something DetectLang can go on (amount suffixes like "25rb" count).
+func hasWords(text string) bool {
+	run := 0
+	for _, r := range strings.ToLower(text) {
+		if r >= 'a' && r <= 'z' {
+			run++
+			if run >= 2 {
+				return true
+			}
+		} else {
+			run = 0
+		}
+	}
+	return false
 }
 
 // Error returns a variant of the error reply for key, in lang, for user.
@@ -49,17 +85,17 @@ func (p *Picker) Chance(pct int) bool {
 	return p.rng.IntN(100) < pct
 }
 
-// FallbackQuip returns a pooled quip for a transaction: by category for
-// expenses (or a generic expense quip if the category has no pool), and the
-// income pool for income.
-func (p *Picker) FallbackQuip(category string, isIncome bool, userJID string, lang message.Lang) string {
+// FallbackQuip returns a pooled (English) quip for a transaction: by
+// category for expenses (or a generic expense quip if the category has no
+// pool), and the income pool for income.
+func (p *Picker) FallbackQuip(category string, isIncome bool, userJID string) string {
 	if isIncome {
-		return p.pick("quip:income", userJID, variants(message.QuipIncome, lang), lang)
+		return p.pick("quip:income", userJID, message.QuipIncome, message.LangEN)
 	}
 	if pool, ok := message.QuipByCategory[category]; ok {
-		return p.pick("quip:"+category, userJID, variants(pool, lang), lang)
+		return p.pick("quip:"+category, userJID, pool, message.LangEN)
 	}
-	return p.pick("quip:expense", userJID, variants(message.QuipExpenseDefault, lang), lang)
+	return p.pick("quip:expense", userJID, message.QuipExpenseDefault, message.LangEN)
 }
 
 // pick returns a random variant, never the same index twice in a row for
@@ -132,6 +168,7 @@ var indonesianWords = map[string]bool{
 	"pagi": true, "malam": true, "sore": true, "bensin": true, "parkir": true, "pulsa": true,
 	"halo": true, "hai": true, "permisi": true, "makasih": true, "terima": true, "kasih": true,
 	"gimana": true, "bisa": true, "mau": true, "nggak": true, "gak": true, "tidak": true,
+	"bunga": true, "tabungan": true, "setor": true, "tarik": true, "tunai": true, "cicilan": true,
 }
 
 // DetectLang guesses whether text is Indonesian or English with a simple
@@ -149,6 +186,25 @@ func DetectLang(text string) message.Lang {
 	// Amounts like "25rb" or "1jt" are split into "rb"/"jt" above, so they
 	// count too.
 	return message.LangEN
+}
+
+// amountWords are Indonesian amount words that are normal inside an English
+// quip ("Nasi goreng for 5 ribu?!"), so IsEnglish ignores them.
+var amountWords = map[string]bool{"rb": true, "ribu": true, "jt": true, "juta": true, "k": true}
+
+// IsEnglish reports whether a quip reads as English: it has no Indonesian
+// words other than amounts. Food, brand and place names aren't in the
+// word list, so they're fine.
+func IsEnglish(text string) bool {
+	fields := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+		return !(r >= 'a' && r <= 'z')
+	})
+	for _, w := range fields {
+		if indonesianWords[w] && !amountWords[w] {
+			return false
+		}
+	}
+	return true
 }
 
 // SanitizeQuip makes an LLM-written quip safe to show: one line, no

@@ -79,21 +79,34 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 	if tx.Amount <= 0 {
 		return renderAmountPrompt(tx), tx, nil
 	}
-	return renderTransactionReply(tx, uc.quip(parsed.Quip, tx, senderJID, rawText)), tx, nil
+	return renderTransactionReply(tx, newTransactionQuip(uc.persona, parsed.Quip, tx, senderJID)), tx, nil
 }
 
-// quip returns Frankie's comment for a newly recorded transaction, or "" on
-// most transactions (it only shows message.QuipChancePct% of the time, so
-// it doesn't get repetitive). It prefers the model's quip and falls back to
-// the pooled ones when the model didn't write one.
-func (uc *RecordTransactionUseCase) quip(modelQuip string, tx *domain.Transaction, senderJID, rawText string) string {
-	if uc.persona == nil || !uc.persona.Chance(message.QuipChancePct) {
+// newTransactionQuip returns Frankie's comment for a newly completed
+// transaction, or "" when it rolls no quip: income always gets one,
+// expenses message.QuipExpenseChancePct% of the time. It prefers the
+// model's quip (modelQuip, may be "") and falls back to the pooled ones.
+func newTransactionQuip(p *persona.Picker, modelQuip string, tx *domain.Transaction, senderJID string) string {
+	if p == nil {
+		return ""
+	}
+	isIncome := tx.Type == domain.Income
+	chance := message.QuipExpenseChancePct
+	if isIncome {
+		chance = message.QuipIncomeChancePct
+	}
+	if !p.Chance(chance) {
 		return ""
 	}
 	if q := persona.SanitizeQuip(modelQuip); q != "" {
-		return q
+		// The prompt asks for English, but the model sometimes follows the
+		// user's Indonesian anyway; fall back to an English pool quip then.
+		if persona.IsEnglish(q) {
+			return q
+		}
+		slog.Info("dropped non-English quip from model", "quip", q)
 	}
-	return uc.persona.FallbackQuip(tx.Category.String(), tx.Type == domain.Income, senderJID, persona.DetectLang(rawText))
+	return p.FallbackQuip(tx.Category.String(), isIncome, senderJID)
 }
 
 // resolveTransactionDate parses a "YYYY-MM-DD" date string from the model

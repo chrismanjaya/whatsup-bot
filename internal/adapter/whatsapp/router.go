@@ -147,9 +147,9 @@ func isBotReply(text string) bool {
 // replyForError maps a usecase's classified error to the message shown to
 // the user, keeping that mapping in one place instead of per call site. The
 // wording is one of Frankie's pooled variants, in the language the user
-// wrote in. The numeric error code is appended so a user can report it
-// without exposing any internal detail — a developer can look up what it
-// means from there.
+// wrote in. The error code's emoji (message.ErrorEmoji) is appended so a
+// screenshot identifies the error without exposing any internal detail; the
+// code itself is logged, to match up with the sender and time.
 func (r *router) replyForError(err error, in incoming) string {
 	key := message.PoolGeneric
 	switch {
@@ -168,5 +168,10 @@ func (r *router) replyForError(err error, in incoming) string {
 	if c, ok := utils.CodeOf(err); ok {
 		code = c.Code
 	}
-	return fmt.Sprintf(message.ErrWithCode, msg, code)
+	emoji, ok := message.ErrorEmoji[code]
+	if !ok {
+		emoji = message.ErrorEmojiDefault
+	}
+	slog.Info("error reply sent", "sender", in.senderJID, "code", code, "emoji", emoji)
+	return fmt.Sprintf(message.ErrWithCode, msg, emoji)
 }

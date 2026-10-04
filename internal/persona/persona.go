@@ -130,6 +130,8 @@ var indonesianWords = map[string]bool{
 	"tolong": true, "dong": true, "nih": true, "ya": true, "apa": true, "siapa": true,
 	"daftar": true, "hapus": true, "ubah": true, "jadi": true, "tadi": true, "siang": true,
 	"pagi": true, "malam": true, "sore": true, "bensin": true, "parkir": true, "pulsa": true,
+	"halo": true, "hai": true, "permisi": true, "makasih": true, "terima": true, "kasih": true,
+	"gimana": true, "bisa": true, "mau": true, "nggak": true, "gak": true, "tidak": true,
 }
 
 // DetectLang guesses whether text is Indonesian or English with a simple

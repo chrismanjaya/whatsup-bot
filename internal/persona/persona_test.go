@@ -42,6 +42,27 @@ func TestQuipPoolsComplete(t *testing.T) {
 	}
 }
 
+func TestErrorVariantsHaveNoCodeEmoji(t *testing.T) {
+	emojis := []string{message.ErrorEmojiDefault}
+	for _, e := range message.ErrorEmoji {
+		emojis = append(emojis, e)
+	}
+	for k, pool := range message.ErrorPools {
+		for _, vs := range pool {
+			for _, v := range vs {
+				for _, e := range emojis {
+					if strings.Contains(v, e) {
+						t.Errorf("pool %s variant %q contains code emoji %s", k, v, e)
+					}
+				}
+				if strings.Contains(v, "⚡") || strings.Contains(v, "🔩") {
+					t.Errorf("pool %s variant %q has a decorative emoji; the code emoji must be the last one", k, v)
+				}
+			}
+		}
+	}
+}
+
 func TestNotRegisteredKeepsInstruction(t *testing.T) {
 	for _, l := range allLangs {
 		for _, v := range message.ErrorPools[message.PoolNotRegistered][l] {
@@ -134,6 +155,7 @@ func TestDetectLang(t *testing.T) {
 		"makan siang 25rb":          message.LangID,
 		"transaksi kemarin":         message.LangID,
 		"kopi 20rb":                 message.LangID,
+		"halo frankie":              message.LangID,
 		"spent 50k on lunch":        message.LangEN,
 		"what's the weather today?": message.LangEN,
 		"hello":                     message.LangEN,

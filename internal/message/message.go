@@ -6,9 +6,10 @@ package message
 // Error replies: the wording lives in ErrorPools (pools.go), picked by
 // errors.Is() classification in the whatsapp router.
 const (
-	// ErrWithCode wraps a pooled error reply with the numeric error code (%d)
-	// so a user can report it without exposing any internal detail.
-	ErrWithCode = "%s\n\n_Error code: %d_"
+	// ErrWithCode appends the error's code emoji (ErrorEmoji in pools.go) to
+	// a pooled error reply, so a screenshot tells us which error it was
+	// without showing the user a technical code.
+	ErrWithCode = "%s %s"
 )
 
 // Registration.

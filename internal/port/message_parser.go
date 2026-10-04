@@ -11,6 +11,7 @@ type ParsedMessage struct {
 	Category    string
 	Description string
 	Date        string // "YYYY-MM-DD", resolved by the model relative to today
+	Quip        string // optional in-character comment from Frankie; untrusted, sanitize before showing
 }
 
 // CurrentTransaction is the state of a previously recorded transaction, given

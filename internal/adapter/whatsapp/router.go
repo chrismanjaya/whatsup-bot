@@ -10,6 +10,7 @@ import (
 	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/message"
+	"whatsup-bot/internal/persona"
 	"whatsup-bot/internal/usecase"
 	"whatsup-bot/internal/utils"
 )
@@ -35,6 +36,7 @@ type router struct {
 	queryTx      *usecase.QueryTransactionsUseCase
 	pageTx       *usecase.PageTransactionsUseCase
 	computeSplit *usecase.ComputeSplitUseCase
+	persona      *persona.Picker
 }
 
 // handle returns the replies to send, in order. A reply's Tx or Page tells
@@ -51,7 +53,7 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 		reply, tx, handled, err := r.amendTx.Execute(ctx, in.senderJID, in.stanzaID, text)
 		if err != nil {
 			utils.LogError("amend transaction failed", err, "sender", in.senderJID)
-			return single(replyForError(err), nil)
+			return single(r.replyForError(err, in), nil)
 		}
 		if handled {
 			slog.Info("transaction amended", "sender", in.senderJID, "stanza_id", in.stanzaID)
@@ -61,7 +63,7 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 		pageReplies, handled, err := r.pageTx.Execute(ctx, in.senderJID, in.stanzaID, text)
 		if err != nil {
 			utils.LogError("page transactions failed", err, "sender", in.senderJID)
-			return single(replyForError(err), nil)
+			return single(r.replyForError(err, in), nil)
 		}
 		if handled {
 			slog.Info("transactions paged", "sender", in.senderJID, "stanza_id", in.stanzaID, "messages", len(pageReplies))
@@ -80,7 +82,7 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 		reply, err := r.registerUser.Execute(ctx, in.senderJID, parts[1], parts[2])
 		if err != nil {
 			utils.LogError("register failed", err, "sender", in.senderJID)
-			return single(replyForError(err), nil)
+			return single(r.replyForError(err, in), nil)
 		}
 		slog.Info("user registered", "sender", in.senderJID, "name", parts[1])
 		return single(reply, nil)
@@ -90,7 +92,7 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 		reply, err := r.computeSplit.Execute(ctx, in.groupID)
 		if err != nil {
 			utils.LogError("split failed", err, "group_id", in.groupID)
-			return single(replyForError(err), nil)
+			return single(r.replyForError(err, in), nil)
 		}
 		slog.Info("split computed", "group_id", in.groupID)
 		return single(reply, nil)
@@ -99,7 +101,7 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 	summary, handled, err := r.summarizeTx.Execute(ctx, in.senderJID, text)
 	if err != nil {
 		utils.LogError("summarize transactions failed", err, "sender", in.senderJID)
-		return single(replyForError(err), nil)
+		return single(r.replyForError(err, in), nil)
 	}
 	if handled {
 		slog.Info("transactions summarized", "sender", in.senderJID)
@@ -109,7 +111,7 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 	queryReplies, handled, err := r.queryTx.Execute(ctx, in.senderJID, text)
 	if err != nil {
 		utils.LogError("query transactions failed", err, "sender", in.senderJID)
-		return single(replyForError(err), nil)
+		return single(r.replyForError(err, in), nil)
 	}
 	if handled {
 		slog.Info("transactions listed", "sender", in.senderJID, "messages", len(queryReplies))
@@ -119,7 +121,7 @@ func (r *router) handle(ctx context.Context, in incoming) []usecase.Reply {
 	reply, tx, err := r.recordTx.Execute(ctx, in.senderJID, text, in.isGroup, in.groupID)
 	if err != nil {
 		utils.LogError("record transaction failed", err, "sender", in.senderJID)
-		return single(replyForError(err), nil)
+		return single(r.replyForError(err, in), nil)
 	}
 	slog.Info("transaction processed", "sender", in.senderJID, "is_group", in.isGroup, "recorded", tx != nil)
 	return single(reply, tx)
@@ -144,20 +146,23 @@ func isBotReply(text string) bool {
 
 // replyForError maps a usecase's classified error to the message shown to
 // the user, keeping that mapping in one place instead of per call site. The
-// numeric error code is appended so a user can report it without exposing
-// any internal detail — a developer can look up what it means from there.
-func replyForError(err error) string {
-	msg := message.ErrGeneric
+// wording is one of Frankie's pooled variants, in the language the user
+// wrote in. The numeric error code is appended so a user can report it
+// without exposing any internal detail — a developer can look up what it
+// means from there.
+func (r *router) replyForError(err error, in incoming) string {
+	key := message.PoolGeneric
 	switch {
 	case errors.Is(err, constant.ErrAlreadyExists):
-		msg = message.ErrAlreadyRegistered
+		key = message.PoolAlreadyRegistered
 	case errors.Is(err, constant.ErrNotFound):
-		msg = message.ErrNotRegistered
+		key = message.PoolNotRegistered
 	case errors.Is(err, constant.ErrInvalidRequest):
-		msg = message.ErrInvalidRequest
+		key = message.PoolInvalidRequest
 	case errors.Is(err, constant.ErrServiceUnavailable):
-		msg = message.ErrServiceUnavailable
+		key = message.PoolServiceUnavailable
 	}
+	msg := r.persona.Error(key, in.senderJID, persona.DetectLang(in.text))
 
 	code := constant.ErrInternal.Code
 	if c, ok := utils.CodeOf(err); ok {

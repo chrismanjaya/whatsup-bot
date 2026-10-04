@@ -3,23 +3,18 @@
 // import it the same way they import internal/constant.
 package message
 
-// Error replies, picked by errors.Is() classification in the whatsapp router.
+// Error replies: the wording lives in ErrorPools (pools.go), picked by
+// errors.Is() classification in the whatsapp router.
 const (
-	ErrGeneric            = "Something went wrong. Please try again."
-	ErrAlreadyRegistered  = "You're already registered."
-	ErrNotRegistered      = "Please register first: register <name> <email>"
-	ErrInvalidRequest     = "I can only help track income and expenses."
-	ErrServiceUnavailable = "The service is a bit busy right now, please try sending that again in a moment."
-
-	// ErrWithCode wraps one of the above with the numeric error code (%d) so
-	// a user can report it without exposing any internal detail.
-	ErrWithCode = "%s (Error code: %d)"
+	// ErrWithCode wraps a pooled error reply with the numeric error code (%d)
+	// so a user can report it without exposing any internal detail.
+	ErrWithCode = "%s\n\n_Error code: %d_"
 )
 
 // Registration.
 const (
 	RegisterUsage = "Usage: register <name> <email>"
-	Welcome       = "Welcome, %s! You can now log your income/expenses." // %s: name
+	Welcome       = "Welcome, %s! ⚡ I'm *Frankie*, stitched together to keep track of your money. Just tell me what you spent or earned, like: makan siang 25rb" // %s: name
 )
 
 // Amend (reply to a confirmation).
@@ -90,8 +85,12 @@ const (
 - Category: *[[transaction_category]]*
 - Amount: *[[transaction_amount_formatted]]*
 - Date: *[[transaction_date_formatted]]*
-
+[[quip]]
 _*Reply to this message to update or delete this transaction_`
+
+	// QuipLine renders Frankie's comment inside TransactionReplyTemplate's
+	// [[quip]] slot. An empty quip leaves the template exactly as before.
+	QuipLine = "\n%s\n"
 
 	AmountPromptHeader   = "*AMOUNT NEEDED*"
 	AmountPromptTemplate = AmountPromptHeader + `
@@ -120,5 +119,7 @@ var BotReplyPrefixes = []string{
 	SummaryHeader,
 	"No transactions found",
 	"Welcome",
-	ErrAlreadyRegistered,
+	// Error replies are pooled (pools.go), so they have no fixed first line
+	// to match on; IsFromMe in the handler is what stops the bot replying to
+	// them.
 }

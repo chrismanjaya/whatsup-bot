@@ -10,6 +10,7 @@ import (
 	"whatsup-bot/internal/adapter/sqlite"
 	"whatsup-bot/internal/adapter/whatsapp"
 	"whatsup-bot/internal/config"
+	"whatsup-bot/internal/persona"
 	"whatsup-bot/internal/usecase"
 	"whatsup-bot/internal/utils"
 )
@@ -42,12 +43,14 @@ func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
 		return nil, err
 	}
 
+	picker := persona.New()
+
 	whatsapp.NewHandler(
 		client,
 		txRepo,
 		pageRepo,
 		usecase.NewRegisterUserUseCase(userRepo),
-		usecase.NewRecordTransactionUseCase(userRepo, txRepo, parser),
+		usecase.NewRecordTransactionUseCase(userRepo, txRepo, parser, picker),
 		usecase.NewAmendTransactionUseCase(userRepo, txRepo, parser),
 		usecase.NewSummarizeTransactionsUseCase(userRepo, txRepo, parser),
 		usecase.NewQueryTransactionsUseCase(userRepo, txRepo, pageRepo, parser),
@@ -55,6 +58,7 @@ func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
 		usecase.NewEnsureGroupUseCase(groupRepo),
 		usecase.NewEnsureGroupMembershipUseCase(userRepo, groupRepo),
 		usecase.NewComputeSplitUseCase(groupRepo, txRepo),
+		picker,
 	).Register()
 
 	return client, nil

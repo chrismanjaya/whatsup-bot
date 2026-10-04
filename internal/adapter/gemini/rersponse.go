@@ -9,6 +9,7 @@ type geminiResponse struct {
 	Category    string `json:"category"`
 	Description string `json:"description"`
 	Date        string `json:"date"`
+	Quip        string `json:"quip"`
 }
 
 type geminiAmendResponse struct {

@@ -11,6 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
+	"whatsup-bot/internal/persona"
 	"whatsup-bot/internal/port"
 	"whatsup-bot/internal/usecase"
 	"whatsup-bot/internal/utils"
@@ -43,6 +44,7 @@ func NewHandler(
 	ensureGroup *usecase.EnsureGroupUseCase,
 	ensureMembership *usecase.EnsureGroupMembershipUseCase,
 	computeSplit *usecase.ComputeSplitUseCase,
+	picker *persona.Picker,
 ) *Handler {
 	return &Handler{
 		client:           client,
@@ -58,6 +60,7 @@ func NewHandler(
 			queryTx:      queryTx,
 			pageTx:       pageTx,
 			computeSplit: computeSplit,
+			persona:      picker,
 		},
 	}
 }

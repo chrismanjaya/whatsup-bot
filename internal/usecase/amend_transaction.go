@@ -87,7 +87,7 @@ func (uc *AmendTransactionUseCase) Execute(ctx context.Context, senderJID, waMes
 		if existing.Amount <= 0 {
 			return renderAmountPrompt(existing), existing, true, nil
 		}
-		return renderTransactionReply(existing), existing, true, nil
+		return renderTransactionReply(existing, ""), existing, true, nil
 
 	default:
 		if existing.Amount <= 0 {

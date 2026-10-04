@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"whatsup-bot/internal/constant"
 	"whatsup-bot/internal/domain"
 	"whatsup-bot/internal/message"
+	"whatsup-bot/internal/persona"
 	"whatsup-bot/internal/port"
 	"whatsup-bot/internal/utils"
 )
@@ -18,10 +20,11 @@ type RecordTransactionUseCase struct {
 	userRepo port.UserRepository
 	txRepo   port.TransactionRepository
 	parser   port.MessageParser
+	persona  *persona.Picker
 }
 
-func NewRecordTransactionUseCase(userRepo port.UserRepository, txRepo port.TransactionRepository, parser port.MessageParser) *RecordTransactionUseCase {
-	return &RecordTransactionUseCase{userRepo: userRepo, txRepo: txRepo, parser: parser}
+func NewRecordTransactionUseCase(userRepo port.UserRepository, txRepo port.TransactionRepository, parser port.MessageParser, picker *persona.Picker) *RecordTransactionUseCase {
+	return &RecordTransactionUseCase{userRepo: userRepo, txRepo: txRepo, parser: parser, persona: picker}
 }
 
 func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawText string, isShared bool, groupID int64) (reply string, tx *domain.Transaction, err error) {
@@ -76,7 +79,21 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 	if tx.Amount <= 0 {
 		return renderAmountPrompt(tx), tx, nil
 	}
-	return renderTransactionReply(tx), tx, nil
+	return renderTransactionReply(tx, uc.quip(parsed.Quip, tx, senderJID, rawText)), tx, nil
+}
+
+// quip returns Frankie's comment for a newly recorded transaction, or "" on
+// most transactions (it only shows message.QuipChancePct% of the time, so
+// it doesn't get repetitive). It prefers the model's quip and falls back to
+// the pooled ones when the model didn't write one.
+func (uc *RecordTransactionUseCase) quip(modelQuip string, tx *domain.Transaction, senderJID, rawText string) string {
+	if uc.persona == nil || !uc.persona.Chance(message.QuipChancePct) {
+		return ""
+	}
+	if q := persona.SanitizeQuip(modelQuip); q != "" {
+		return q
+	}
+	return uc.persona.FallbackQuip(tx.Category.String(), tx.Type == domain.Income, senderJID, persona.DetectLang(rawText))
 }
 
 // resolveTransactionDate parses a "YYYY-MM-DD" date string from the model
@@ -117,7 +134,9 @@ func renderAmountPrompt(tx *domain.Transaction) string {
 	return replacer.Replace(message.AmountPromptTemplate)
 }
 
-func renderTransactionReply(tx *domain.Transaction) string {
+// renderTransactionReply renders the confirmation for tx. quip is Frankie's
+// optional comment, shown above the footer; pass "" for none.
+func renderTransactionReply(tx *domain.Transaction, quip string) string {
 	typeStr := message.TypeExpense
 	if tx.Type == domain.Income {
 		typeStr = message.TypeIncome
@@ -129,8 +148,16 @@ func renderTransactionReply(tx *domain.Transaction) string {
 		"[[transaction_category]]", titleCase(tx.Category.String()),
 		"[[transaction_amount_formatted]]", message.Currency+" "+formatAmount(tx.Amount),
 		"[[transaction_date_formatted]]", tx.TransactionDate.Format("02 Jan 2006"),
+		"[[quip]]", quipLine(quip),
 	)
 	return replacer.Replace(message.TransactionReplyTemplate)
+}
+
+func quipLine(quip string) string {
+	if quip == "" {
+		return ""
+	}
+	return fmt.Sprintf(message.QuipLine, quip)
 }
 
 func titleCase(s string) string {

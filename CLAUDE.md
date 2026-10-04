@@ -9,7 +9,7 @@ cmd/bot is the composition root and the only place importing concrete adapters: 
 - Enums as typed strings with String()/Valid()/ParseX() constructors (see domain/transaction.go's TransactionType, domain/category.go's Category).
 - domain.Category.AllCategories is the single source of truth for valid categories — Valid(), the Gemini schema Enum, and the prompt's category list all derive from it. Add/remove categories there only.
 - Errors: usecases return sentinel errors from internal/constant, classified into user-facing messages by replyForError() in internal/adapter/whatsapp/router.go via errors.Is(), with the wording taken from internal/message. Don't return raw message strings from usecases for expected failure paths.
-- User-facing text: every reply string/template (errors, welcome, split, confirmations) lives in internal/message/message.go — edit wording there, don't inline strings in usecases or the router. BotReplyPrefixes in that file drives the router's self-echo guard, so a new reply template's first line must be added there.
+- User-facing text: every reply string/template (errors, welcome, split, confirmations) lives in internal/message — message.go for fixed templates, pools.go for Frankie's randomized variants (error replies and quip fallbacks). Edit wording there, don't inline strings in usecases or the router. BotReplyPrefixes in that file drives the router's self-echo guard, so a new reply template's first line must be added there.
 - Config: read via internal/config.Load() (add new env vars there, with defaults). Single source of truth is GitHub Secrets, written to ~/whatsup-bot.env on the VM by the deploy workflow, loaded via systemd's EnvironmentFile=. Never hardcode secrets or set env vars manually on the VM.
 
 ## Known gotchas / decisions made
@@ -42,6 +42,13 @@ Reply to a bot transaction confirmation to edit or delete it — no visible tran
 - SummarizeTransactionsUseCase (internal/usecase/summarize_transactions.go) pre-filters on summaryKeywords, then MessageParser.ParseSummary (Gemini) resolves the date range. It runs in the router after register/split and before QueryTransactionsUseCase; handled=false falls through.
 - Max range is 1 month (inclusive, so 1 Aug–31 Aug ok, 1 Aug–1 Sep too long) -> message.SummaryRangeTooLong. Transactions with amount 0 (still awaiting an amount) are left out. A side with no transactions renders as *none* and its insights are dropped; no transactions at all reuses message.QueryNoResults.
 - Fetches everything via ListByUserBetween with limit -1 (SQLite: no limit), no paging.
+
+## Frankie persona (done)
+The bot speaks as *Frankie*, a friendly creature stitched together in a lab who tracks the user's money and calls them "bos".
+- Error replies: replyForError() (router.go) maps the error to a message.PoolKey and asks persona.Picker (internal/persona) for a variant from message.ErrorPools. The picker never repeats the last variant a user saw from the same pool (in-memory, resets on restart) and fills [[greeting]] by Asia/Jakarta time of day. Language comes from persona.DetectLang (Indonesian keyword check, defaults to English) — no model call. The error code is still appended (message.ErrWithCode) for debugging.
+- Pooled error replies have no fixed first line, so they're not in BotReplyPrefixes; IsFromMe is what guards them. Every variant for not-registered must keep the exact "register <name> <email>" instruction (enforced by a test).
+- Transaction quips: Parse's Gemini schema has an optional "quip" field (same request, no extra call). RecordTransactionUseCase shows a quip on message.QuipChancePct (35%) of new confirmations, in the [[quip]] slot above the footer, so *EXPENSE*/*INCOME* stays the first line. The model's quip is untrusted: persona.SanitizeQuip strips newlines and WhatsApp formatting characters and caps the length. If it's empty, a fallback comes from message.QuipByCategory / QuipExpenseDefault / QuipIncome. No quip on *AMOUNT NEEDED*, amend re-renders or query listings.
+- persona.Picker is created once in wire.go and shared by the router and RecordTransactionUseCase; tests use persona.NewWithSource for a fixed seed and clock.
 
 ## In progress
 Nothing currently tracked here.

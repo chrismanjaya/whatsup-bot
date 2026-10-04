@@ -44,6 +44,7 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 				"category":    {Type: genai.TypeString, Enum: categories},
 				"description": {Type: genai.TypeString},
 				"date":        {Type: genai.TypeString},
+				"quip":        {Type: genai.TypeString},
 			},
 			Required: []string{"valid", "type", "amount", "category", "description", "date"},
 		},
@@ -67,6 +68,7 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 		"category", gr.Category,
 		"description", gr.Description,
 		"date", gr.Date,
+		"quip", gr.Quip,
 	)
 
 	return &port.ParsedMessage{
@@ -76,6 +78,7 @@ func (p *Parser) Parse(ctx context.Context, rawText string) (*port.ParsedMessage
 		Category:    gr.Category,
 		Description: gr.Description,
 		Date:        gr.Date,
+		Quip:        gr.Quip,
 	}, nil
 }
 

@@ -185,6 +185,50 @@ func TestLangRemembersLastLanguage(t *testing.T) {
 	}
 }
 
+func TestPartOfDayAndSameDay(t *testing.T) {
+	cases := map[int]string{0: "night", 3: "night", 4: "morning", 10: "morning", 11: "afternoon", 17: "afternoon", 18: "evening", 23: "evening"}
+	for h, want := range cases {
+		if got := PartOfDay(time.Date(2026, 10, 5, h, 30, 0, 0, Jakarta)); got != want {
+			t.Errorf("PartOfDay(%02d:30) = %q, want %q", h, got, want)
+		}
+	}
+	// 23:30 WIB on the 4th is 16:30 UTC on the 4th; 00:30 WIB on the 5th is
+	// 17:30 UTC on the 4th: same UTC day, different Jakarta days.
+	late := time.Date(2026, 10, 4, 16, 30, 0, 0, time.UTC)
+	afterMidnight := time.Date(2026, 10, 4, 17, 30, 0, 0, time.UTC)
+	if SameDay(late, afterMidnight) {
+		t.Error("SameDay must compare Jakarta days, not UTC days")
+	}
+	if !SameDay(time.Date(2026, 10, 5, 1, 0, 0, 0, Jakarta), time.Date(2026, 10, 5, 22, 0, 0, 0, Jakarta)) {
+		t.Error("same Jakarta day reported as different")
+	}
+}
+
+func TestDailyGreeting(t *testing.T) {
+	for h, part := range map[int]string{2: "night", 8: "morning", 14: "afternoon", 20: "evening"} {
+		p := fixedPicker(1, time.Date(2026, 10, 5, h, 0, 0, 0, Jakarta))
+		g := p.DailyGreeting("u", "Chris")
+		if !contains(fillName(message.DailyGreetingPools[part], "Chris"), g) {
+			t.Errorf("%02d:00 greeting %q not from the %s pool", h, g, part)
+		}
+		if strings.Contains(g, "[[") {
+			t.Errorf("unfilled placeholder: %q", g)
+		}
+	}
+	p := fixedPicker(1, time.Date(2026, 10, 5, 8, 0, 0, 0, Jakarta))
+	if g := p.DailyGreeting("u", ""); !strings.Contains(g, "bos") {
+		t.Errorf("empty name should fall back to bos: %q", g)
+	}
+}
+
+func fillName(vs []string, name string) []string {
+	out := make([]string, len(vs))
+	for i, v := range vs {
+		out[i] = strings.ReplaceAll(v, "[[name]]", name)
+	}
+	return out
+}
+
 func TestChance(t *testing.T) {
 	p := fixedPicker(3, time.Now())
 	hits := 0

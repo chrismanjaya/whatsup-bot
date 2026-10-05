@@ -84,6 +84,25 @@ func (r *TransactionRepo) FindByWAMessageID(ctx context.Context, waMessageID str
 	return &tx, nil
 }
 
+// LastCreatedAt returns the created_at of the user's newest transaction (by
+// id, i.e. insertion order). The comparison with "today" is left to the
+// caller in Go, since stored timestamps carry whatever UTC offset the
+// process had when they were saved.
+func (r *TransactionRepo) LastCreatedAt(ctx context.Context, userID int64) (time.Time, bool, error) {
+	var t time.Time
+	err := r.db.QueryRowContext(ctx,
+		`SELECT created_at FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
+		userID,
+	).Scan(&t)
+	if err == sql.ErrNoRows {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, utils.Wrap(err, "last created_at")
+	}
+	return t, true, nil
+}
+
 func (r *TransactionRepo) SetWAMessageID(ctx context.Context, id int64, waMessageID string) error {
 	if _, err := r.db.ExecContext(ctx, `UPDATE transactions SET wa_message_id = ? WHERE id = ?`, waMessageID, id); err != nil {
 		return utils.Wrap(err, "set wa message id failed")

@@ -75,14 +75,39 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 		CreatedAt:       time.Now(),
 	}
 
+	greeting := uc.dailyGreeting(ctx, user, senderJID)
+
 	if err := uc.txRepo.Save(ctx, tx); err != nil {
 		return nil, utils.WrapStd(constant.ErrInternal, "save failed", err)
 	}
 
-	if tx.Amount <= 0 {
-		return []Reply{{Text: renderAmountPrompt(tx), Tx: tx}}, nil
+	var replies []Reply
+	if greeting != "" {
+		replies = append(replies, Reply{Text: greeting})
 	}
-	return transactionReplies(tx, newTransactionQuip(uc.persona, parsed.Quip, tx, senderJID)), nil
+	if tx.Amount <= 0 {
+		return append(replies, Reply{Text: renderAmountPrompt(tx), Tx: tx}), nil
+	}
+	return append(replies, transactionReplies(tx, newTransactionQuip(uc.persona, parsed.Quip, tx, senderJID))...), nil
+}
+
+// dailyGreeting returns Frankie's greeting if this is the user's first
+// transaction today (Asia/Jakarta), or "". It's based on the stored
+// transactions, so it survives restarts and deploys. A lookup error just
+// skips the greeting.
+func (uc *RecordTransactionUseCase) dailyGreeting(ctx context.Context, user *domain.User, senderJID string) string {
+	if uc.persona == nil {
+		return ""
+	}
+	last, ok, err := uc.txRepo.LastCreatedAt(ctx, user.ID)
+	if err != nil {
+		utils.LogWarn("last transaction lookup failed, skipping greeting", err, "user_id", user.ID)
+		return ""
+	}
+	if ok && persona.SameDay(last, uc.persona.Now()) {
+		return ""
+	}
+	return uc.persona.DailyGreeting(senderJID, titleCase(user.Name))
 }
 
 // transactionReplies is a transaction confirmation (linked to tx) followed
@@ -93,7 +118,7 @@ func (uc *RecordTransactionUseCase) Execute(ctx context.Context, senderJID, rawT
 func transactionReplies(tx *domain.Transaction, quip string) []Reply {
 	replies := []Reply{{Text: renderTransactionReply(tx), Tx: tx}}
 	if quip != "" {
-		replies = append(replies, Reply{Text: message.QuipPrefix + quip})
+		replies = append(replies, Reply{Text: message.QuipPrefix + quip, Typing: true})
 	}
 	return replies
 }

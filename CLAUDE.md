@@ -51,5 +51,10 @@ The bot speaks as *Frankie*, a friendly creature stitched together in a lab who 
 - Reply language: persona.Picker.Lang(userJID, text) detects it and remembers it per user (in memory), so a message with no words, like a bare amount, reuses the user's last language.
 - persona.Picker is created once in wire.go and shared by the router and RecordTransactionUseCase; tests use persona.NewWithSource for a fixed seed and clock.
 
+## Per-chat queue, typing pause, daily greeting (done)
+- whatsmeow calls event handlers on one serial loop, so the Handler's handleEvent only filters/extracts the message and hands the rest (Handler.process) to a chatQueue (internal/adapter/whatsapp/queue.go): one worker goroutine per chat, jobs in arrival order, chats in parallel; a worker exits after chatIdle (5 min) without messages, and a panicking job is logged instead of crashing the bot. SQLite writes from parallel chats rely on the DSN's _busy_timeout=5000.
+- usecase.Reply.Typing: the handler shows "typing..." for typingDelay(text) (700 ms + 20 ms/char, max 2 s) before sending that reply. Set on Frankie's chatty messages (the quip); data messages (confirmations, listings) keep the short sendInterval. The pause only delays that chat.
+- Daily greeting: on a user's first transaction of the day (Asia/Jakarta), RecordTransactionUseCase sends a greeting message first (message.DailyGreetingPools by part of day, with [[name]] = the registered name). "First today" = TransactionRepository.LastCreatedAt (newest by id) is not on the same Jakarta day (persona.SameDay), checked before saving — so it survives restarts, with no schema change. Timestamps are compared in Go, not SQL, because stored created_at strings carry whatever UTC offset the process had.
+
 ## In progress
 Nothing currently tracked here.

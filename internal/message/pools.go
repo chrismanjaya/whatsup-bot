@@ -55,6 +55,33 @@ var Greetings = map[Lang]map[string]string{
 	LangID: {"night": "Masih begadang", "morning": "Pagi", "afternoon": "Siang", "evening": "Malam"},
 }
 
+// DailyGreetingPools greet the user on their first transaction of the day
+// (Asia/Jakarta), keyed by part of day ("night", "morning", "afternoon",
+// "evening"). [[name]] is the user's registered name. Sent as its own
+// message before the confirmation.
+var DailyGreetingPools = map[string][]string{
+	"night": {
+		"Still up, [[name]]? 🌙 Frankie never sleeps anyway. Let's open the big book.",
+		"Late night, [[name]]! The lab is quiet, but Frankie is here.",
+		"[[name]]! Night shift in the lab 🌙 First entry of the day.",
+	},
+	"morning": {
+		"Morning, [[name]]! ☀️ Frankie is awake and the big book is open.",
+		"Good morning, [[name]]! The lab lights are on, ready to count coins.",
+		"Morning, [[name]]! First one today. Frankie stretches his stitches ☀️",
+	},
+	"afternoon": {
+		"Afternoon, [[name]]! Frankie was waiting for you.",
+		"Hi [[name]]! First entry today, Frankie opens the big book.",
+		"Afternoon, [[name]]! The lab missed you this morning.",
+	},
+	"evening": {
+		"Evening, [[name]]! 🌙 First entry today, Frankie is ready.",
+		"Good evening, [[name]]! Frankie kept the big book warm for you.",
+		"Evening, [[name]]! The lab lights are still on, let's log it.",
+	},
+}
+
 // ErrorEmoji maps an error code to the emoji appended to the error reply.
 // It identifies the error for debugging without showing a technical code:
 // look up the sender and time in the logs for the full error. Keep them

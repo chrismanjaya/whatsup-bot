@@ -32,6 +32,13 @@ func (f *fakeTxRepo) Save(_ context.Context, tx *domain.Transaction) error {
 	return nil
 }
 
+func (f *fakeTxRepo) LastCreatedAt(context.Context, int64) (time.Time, bool, error) {
+	if len(f.saved) == 0 {
+		return time.Time{}, false, nil
+	}
+	return f.saved[len(f.saved)-1].CreatedAt, true, nil
+}
+
 type fakeParser struct {
 	port.MessageParser
 	parsed *port.ParsedMessage
@@ -78,6 +85,16 @@ func TestTransactionRepliesQuipIsSeparateAndUnlinked(t *testing.T) {
 	}
 }
 
+// confirmation returns the reply linked to the transaction, if any.
+func confirmation(replies []Reply) *Reply {
+	for i := range replies {
+		if replies[i].Tx != nil {
+			return &replies[i]
+		}
+	}
+	return nil
+}
+
 // texts joins the reply texts, for checks that don't care which message
 // a line is in.
 func texts(replies []Reply) string {
@@ -100,11 +117,12 @@ func TestRecordTransactionQuipRate(t *testing.T) {
 	withQuip := 0
 	for i := 0; i < n; i++ {
 		replies, err := uc.Execute(context.Background(), "jid", "beli nasi goreng 5000", false, 0)
-		if err != nil || len(replies) == 0 || replies[0].Tx == nil {
-			t.Fatalf("Execute: %v", err)
+		conf := confirmation(replies)
+		if err != nil || conf == nil {
+			t.Fatalf("Execute: %v, replies %+v", err, replies)
 		}
 		reply := texts(replies)
-		if !strings.HasPrefix(reply, "*EXPENSE*") {
+		if !strings.HasPrefix(conf.Text, "*EXPENSE*") {
 			t.Fatalf("reply must start with *EXPENSE* for the self-echo guard: %q", reply)
 		}
 		if strings.Contains(reply, parsed.Quip) {
@@ -181,7 +199,8 @@ func TestRecordTransactionIncomeAlwaysQuips(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		replies, _ := uc.Execute(context.Background(), "jid", "15/9 deposito 509.589", false, 0)
 		reply := texts(replies)
-		if len(replies) != 2 || replies[1].Text != message.QuipPrefix+parsed.Quip {
+		last := replies[len(replies)-1]
+		if last.Text != message.QuipPrefix+parsed.Quip || !last.Typing {
 			t.Fatalf("income without a quip at try %d:\n%s", i, reply)
 		}
 	}
@@ -237,5 +256,41 @@ func TestAmendFillingAmountQuips(t *testing.T) {
 	reply = texts(replies)
 	if len(replies) != 1 || !strings.HasSuffix(reply, "_*Reply to this message to update or delete this transaction_") {
 		t.Errorf("correction should render without a quip:\n%s", reply)
+	}
+}
+
+func TestRecordTransactionGreetsOncePerDay(t *testing.T) {
+	parsed := &port.ParsedMessage{Valid: true, Type: "DB", Amount: 125000, Category: "food", Description: "hokben", Date: "2026-10-05"}
+	picker := persona.NewWithSource(rand.NewPCG(6, 6), time.Now)
+	repo := &fakeTxRepo{}
+	uc := NewRecordTransactionUseCase(&fakeUserRepo{user: &domain.User{ID: 1, Name: "chris"}}, repo, &fakeParser{parsed: parsed}, picker)
+
+	isGreeting := func(r Reply) bool {
+		return r.Tx == nil && !strings.HasPrefix(r.Text, message.QuipPrefix) && strings.Contains(r.Text, "Chris")
+	}
+
+	first, err := uc.Execute(context.Background(), "jid", "hokben 125000", false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isGreeting(first[0]) || first[0].Typing || first[1].Tx == nil {
+		t.Fatalf("first transaction of the day should start with a greeting, then the confirmation: %+v", first)
+	}
+
+	second, _ := uc.Execute(context.Background(), "jid", "kopi 20rb", false, 0)
+	for _, r := range second {
+		if isGreeting(r) {
+			t.Fatalf("second transaction today greeted again: %+v", second)
+		}
+	}
+	if second[0].Tx == nil {
+		t.Errorf("without a greeting the confirmation comes first: %+v", second)
+	}
+
+	// Last transaction was yesterday (Jakarta): greet again.
+	repo.saved[len(repo.saved)-1].CreatedAt = time.Now().Add(-24 * time.Hour)
+	third, _ := uc.Execute(context.Background(), "jid", "bakso 30rb", false, 0)
+	if !isGreeting(third[0]) {
+		t.Errorf("first transaction of a new day should greet: %+v", third)
 	}
 }

@@ -17,8 +17,13 @@ import (
 	"whatsup-bot/internal/utils"
 )
 
-// sendInterval is the pause between consecutive messages of one response.
+// sendInterval is the pause between consecutive data messages of one
+// response (a Reply with Typing set gets a typing pause instead).
 const sendInterval = 250 * time.Millisecond
+
+// chatIdle is how long a chat's worker waits for another message before it
+// exits (see chatQueue).
+const chatIdle = 5 * time.Minute
 
 // Handler is the whatsmeow event handler: it translates WhatsApp events into
 // plain inputs, delegates to the router, and sends the reply back.
@@ -29,6 +34,7 @@ type Handler struct {
 	ensureGroup      *usecase.EnsureGroupUseCase
 	ensureMembership *usecase.EnsureGroupMembershipUseCase
 	router           router
+	queue            *chatQueue
 }
 
 func NewHandler(
@@ -62,6 +68,7 @@ func NewHandler(
 			computeSplit: computeSplit,
 			persona:      picker,
 		},
+		queue: newChatQueue(chatIdle),
 	}
 }
 
@@ -70,9 +77,10 @@ func (h *Handler) Register() {
 	h.client.AddEventHandler(h.handleEvent)
 }
 
+// handleEvent runs on whatsmeow's serial event loop, so it only does the
+// cheap filtering here and hands the real work to the chat's queue: a slow
+// reply in one chat then doesn't delay the others.
 func (h *Handler) handleEvent(evt interface{}) {
-	ctx := context.Background()
-
 	v, ok := evt.(*events.Message)
 	if !ok {
 		return
@@ -103,6 +111,14 @@ func (h *Handler) handleEvent(evt interface{}) {
 		return
 	}
 
+	h.queue.Enqueue(v.Info.Chat.String(), func() {
+		h.process(context.Background(), v, text, stanzaID, quotedText)
+	})
+}
+
+// process handles one message: group bookkeeping, routing, and sending the
+// replies. It runs on the chat's queue worker, one message at a time.
+func (h *Handler) process(ctx context.Context, v *events.Message, text, stanzaID, quotedText string) {
 	senderJID := v.Info.Sender.ToNonAD().String()
 	chatJID := v.Info.Chat
 	isGroup := strings.HasSuffix(chatJID.String(), "@g.us")
@@ -143,12 +159,26 @@ func (h *Handler) handleEvent(evt interface{}) {
 	}
 
 	for i, reply := range replies {
-		if i > 0 {
+		switch {
+		case reply.Typing:
+			// Show "typing..." first, so a chatty reply arrives like a
+			// person typing it. This only delays this chat (see chatQueue).
+			h.typing(ctx, chatJID, reply.Text)
+		case i > 0:
 			// Keep a multi-message listing in order on the recipient's phone.
 			time.Sleep(sendInterval)
 		}
 		h.send(ctx, chatJID, reply)
 	}
+}
+
+// typing shows the typing indicator in the chat for typingDelay(text).
+// Sending the message afterwards clears it on the recipient's phone.
+func (h *Handler) typing(ctx context.Context, chatJID types.JID, text string) {
+	if err := h.client.SendChatPresence(ctx, chatJID, types.ChatPresenceComposing, types.ChatPresenceMediaText); err != nil {
+		utils.LogError("send typing presence failed", err, "chat_jid", chatJID.String())
+	}
+	time.Sleep(typingDelay(text))
 }
 
 // send delivers one reply and links the sent message's WhatsApp ID to the

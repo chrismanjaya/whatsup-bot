@@ -28,8 +28,12 @@ var queryKeywords = []string{"transaksi", "transaction", "riwayat", "history", "
 // to it can be resolved.
 type Reply struct {
 	Text string
-	Tx   *domain.Transaction
-	Page *domain.QueryPage
+	// Typing makes the handler show "typing..." for a moment before
+	// sending this reply, so Frankie's chatty messages (like a quip)
+	// arrive like a person typing them. Data messages leave it false.
+	Typing bool
+	Tx     *domain.Transaction
+	Page   *domain.QueryPage
 }
 
 type QueryTransactionsUseCase struct {

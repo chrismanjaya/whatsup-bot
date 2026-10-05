@@ -136,23 +136,56 @@ func variants(pool map[message.Lang][]string, lang message.Lang) []string {
 
 // Greeting returns a time-of-day greeting for t, in Asia/Jakarta time.
 func Greeting(t time.Time, lang message.Lang) string {
-	if loc, err := time.LoadLocation("Asia/Jakarta"); err == nil {
-		t = t.In(loc)
-	}
-	part := "evening"
-	switch h := t.Hour(); {
-	case h < 4:
-		part = "night"
-	case h < 11:
-		part = "morning"
-	case h < 18:
-		part = "afternoon"
-	}
 	greetings := message.Greetings[lang]
 	if greetings == nil {
 		greetings = message.Greetings[message.LangEN]
 	}
-	return greetings[part]
+	return greetings[PartOfDay(t)]
+}
+
+// PartOfDay returns "night" (00-03), "morning" (04-10), "afternoon"
+// (11-17) or "evening" (18-23) for t in Asia/Jakarta time.
+func PartOfDay(t time.Time) string {
+	t = t.In(Jakarta)
+	switch h := t.Hour(); {
+	case h < 4:
+		return "night"
+	case h < 11:
+		return "morning"
+	case h < 18:
+		return "afternoon"
+	}
+	return "evening"
+}
+
+// Jakarta is the bot's local time zone (UTC+7, no DST); it falls back to a
+// fixed zone if tzdata isn't available.
+var Jakarta = func() *time.Location {
+	if loc, err := time.LoadLocation("Asia/Jakarta"); err == nil {
+		return loc
+	}
+	return time.FixedZone("WIB", 7*3600)
+}()
+
+// SameDay reports whether a and b fall on the same calendar day in Jakarta.
+func SameDay(a, b time.Time) bool {
+	ay, am, ad := a.In(Jakarta).Date()
+	by, bm, bd := b.In(Jakarta).Date()
+	return ay == by && am == bm && ad == bd
+}
+
+// Now returns the picker's clock (the real one outside tests).
+func (p *Picker) Now() time.Time { return p.now() }
+
+// DailyGreeting returns a greeting for the user's first transaction of the
+// day, matching the time of day, with their name filled in.
+func (p *Picker) DailyGreeting(userJID, name string) string {
+	part := PartOfDay(p.now())
+	g := p.pick("greet:"+part, userJID, message.DailyGreetingPools[part], message.LangEN)
+	if name == "" {
+		name = "bos"
+	}
+	return strings.ReplaceAll(g, "[[name]]", name)
 }
 
 // indonesianWords are common words that mark a message as Indonesian.

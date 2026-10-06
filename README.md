@@ -27,16 +27,23 @@ Built with clean architecture principles — business logic is independent of Wh
    * cmd/
       * bot/ # main.go (startup/shutdown) + wire.go (dependency wiring)
    * internal/
+      * domain/ # entities + rules (Transaction, User, Group) — no external deps
+      * repository/ # storage interfaces the usecases need
+      * parser/ # text-parsing interface the usecases need
+      * usecase/ # business logic — depends only on domain + interfaces
+         * transaction/ # record, amend, query, page, summarize
+         * user/ # register
+         * group/ # group bookkeeping, split
+         * response/ # Reply type shared by all usecases
+         * message/ # all user-facing reply text and templates
+         * persona/ # Frankie's reply-variant picker
+      * external/
+         * whatsapp/ # whatsmeow integration: client/pairing, event handler, message routing
+         * gemini/ # LLM-based message parsing
+         * database/ # SQLite persistence
       * config/ # env loading + defaults
-      * message/ # all user-facing reply text and templates
-      * domain/ # entities (Transaction, User, Group) — no external deps
-      * usecase/ # business logic — depends only on domain + port interfaces
-      * port/ # interfaces (repositories, parser, exporter)
-      * adapter/
-      * whatsapp/ # whatsmeow integration: client/pairing, event handler, message routing
-      * gemini/ # LLM-based message parsing
-      * sqlite/ # persistence layer
-      * sheets/ # Google Sheets export
+      * constant/ # sentinel errors
+      * util/ # logging + error helpers
    * go.mod
    * Makefile
    * .github/

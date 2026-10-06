@@ -9,28 +9,28 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"whatsup-bot/internal/adapter/whatsapp"
 	"whatsup-bot/internal/config"
-	"whatsup-bot/internal/utils"
+	"whatsup-bot/internal/external/whatsapp"
+	"whatsup-bot/internal/util"
 )
 
 func main() {
 	ctx := context.Background()
 
-	utils.SetupLogger()
+	util.SetupLogger()
 
 	cfg, err := config.Load()
 	if err != nil {
-		utils.Fatal("load config failed", err)
+		util.Fatal("load config failed", err)
 	}
 
 	client, err := build(ctx, cfg)
 	if err != nil {
-		utils.Fatal("build app failed", err)
+		util.Fatal("build app failed", err)
 	}
 
 	if err := whatsapp.Connect(ctx, client); err != nil {
-		utils.Fatal("connect failed", err)
+		util.Fatal("connect failed", err)
 	}
 	defer client.Disconnect()
 

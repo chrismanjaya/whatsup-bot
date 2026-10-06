@@ -6,35 +6,37 @@ import (
 	"go.mau.fi/whatsmeow"
 	"google.golang.org/genai"
 
-	"whatsup-bot/internal/adapter/gemini"
-	"whatsup-bot/internal/adapter/sqlite"
-	"whatsup-bot/internal/adapter/whatsapp"
 	"whatsup-bot/internal/config"
-	"whatsup-bot/internal/persona"
-	"whatsup-bot/internal/usecase"
-	"whatsup-bot/internal/utils"
+	"whatsup-bot/internal/external/database"
+	"whatsup-bot/internal/external/gemini"
+	"whatsup-bot/internal/external/whatsapp"
+	"whatsup-bot/internal/usecase/group"
+	"whatsup-bot/internal/usecase/persona"
+	"whatsup-bot/internal/usecase/transaction"
+	"whatsup-bot/internal/usecase/user"
+	"whatsup-bot/internal/util"
 )
 
 // build is the composition root: it constructs every adapter and usecase and
 // connects them. This package is the only place allowed to import concrete
 // adapters.
 func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
-	appDB, err := sqlite.Open(cfg.AppDBPath)
+	appDB, err := database.Open(cfg.AppDBPath)
 	if err != nil {
-		return nil, utils.Wrap(err, "open app db")
+		return nil, util.Wrap(err, "open app db")
 	}
 
-	userRepo := sqlite.NewUserRepo(appDB)
-	txRepo := sqlite.NewTransactionRepo(appDB)
-	groupRepo := sqlite.NewGroupRepo(appDB)
-	pageRepo := sqlite.NewQueryPageRepo(appDB)
+	userRepo := database.NewUserRepo(appDB)
+	txRepo := database.NewTransactionRepo(appDB)
+	groupRepo := database.NewGroupRepo(appDB)
+	pageRepo := database.NewQueryPageRepo(appDB)
 
 	geminiClient, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  cfg.GeminiAPIKey,
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		return nil, utils.Wrap(err, "create gemini client")
+		return nil, util.Wrap(err, "create gemini client")
 	}
 	parser := gemini.NewParser(geminiClient, cfg.GeminiModel)
 
@@ -49,15 +51,15 @@ func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
 		client,
 		txRepo,
 		pageRepo,
-		usecase.NewRegisterUserUseCase(userRepo),
-		usecase.NewRecordTransactionUseCase(userRepo, txRepo, parser, picker),
-		usecase.NewAmendTransactionUseCase(userRepo, txRepo, parser, picker),
-		usecase.NewSummarizeTransactionsUseCase(userRepo, txRepo, parser),
-		usecase.NewQueryTransactionsUseCase(userRepo, txRepo, pageRepo, parser),
-		usecase.NewPageTransactionsUseCase(userRepo, txRepo, pageRepo),
-		usecase.NewEnsureGroupUseCase(groupRepo),
-		usecase.NewEnsureGroupMembershipUseCase(userRepo, groupRepo),
-		usecase.NewComputeSplitUseCase(groupRepo, txRepo),
+		user.NewRegisterUseCase(userRepo),
+		transaction.NewRecordUseCase(userRepo, txRepo, parser, picker),
+		transaction.NewAmendUseCase(userRepo, txRepo, parser, picker),
+		transaction.NewSummarizeUseCase(userRepo, txRepo, parser),
+		transaction.NewQueryUseCase(userRepo, txRepo, pageRepo, parser),
+		transaction.NewPageUseCase(userRepo, txRepo, pageRepo),
+		group.NewEnsureUseCase(groupRepo),
+		group.NewEnsureMembershipUseCase(userRepo, groupRepo),
+		group.NewComputeSplitUseCase(groupRepo, txRepo),
 		picker,
 	).Register()
 

@@ -116,7 +116,7 @@ func (uc *RecordUseCase) dailyGreeting(ctx context.Context, user *domain.User, s
 // by quip as its own message (starting with message.QuipPrefix), if there
 // is one. The quip is deliberately not linked to tx: a transaction holds one
 // wa_message_id, which must stay the confirmation's so replying to it keeps
-// working. A reply to the quip is recognized by its prefix in the router.
+// working. A reply to the quip is recognized by its prefix in the dispatcher.
 func transactionReplies(tx *domain.Transaction, quip string) []response.Reply {
 	replies := []response.Reply{{Text: renderTransactionReply(tx), Tx: tx}}
 	if quip != "" {

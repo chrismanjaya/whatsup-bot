@@ -12,11 +12,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"whatsup-bot/internal/repository"
+	"whatsup-bot/internal/usecase"
 	"whatsup-bot/internal/usecase/group"
-	"whatsup-bot/internal/usecase/persona"
 	"whatsup-bot/internal/usecase/response"
-	"whatsup-bot/internal/usecase/transaction"
-	"whatsup-bot/internal/usecase/user"
 	"whatsup-bot/internal/util"
 )
 
@@ -29,14 +27,14 @@ const sendInterval = 250 * time.Millisecond
 const chatIdle = 5 * time.Minute
 
 // Handler is the whatsmeow event handler: it translates WhatsApp events into
-// plain inputs, delegates to the router, and sends the reply back.
+// plain inputs, delegates to the dispatcher, and sends the replies back.
 type Handler struct {
 	client           *whatsmeow.Client
 	txRepo           repository.TransactionRepository
 	pageRepo         repository.QueryPageRepository
 	ensureGroup      *group.EnsureUseCase
 	ensureMembership *group.EnsureMembershipUseCase
-	router           router
+	dispatcher       *usecase.Dispatcher
 	queue            *chatQueue
 }
 
@@ -44,16 +42,9 @@ func NewHandler(
 	client *whatsmeow.Client,
 	txRepo repository.TransactionRepository,
 	pageRepo repository.QueryPageRepository,
-	registerUser *user.RegisterUseCase,
-	recordTx *transaction.RecordUseCase,
-	amendTx *transaction.AmendUseCase,
-	summarizeTx *transaction.SummarizeUseCase,
-	queryTx *transaction.QueryUseCase,
-	pageTx *transaction.PageUseCase,
 	ensureGroup *group.EnsureUseCase,
 	ensureMembership *group.EnsureMembershipUseCase,
-	computeSplit *group.ComputeSplitUseCase,
-	picker *persona.Picker,
+	dispatcher *usecase.Dispatcher,
 ) *Handler {
 	return &Handler{
 		client:           client,
@@ -61,17 +52,8 @@ func NewHandler(
 		pageRepo:         pageRepo,
 		ensureGroup:      ensureGroup,
 		ensureMembership: ensureMembership,
-		router: router{
-			registerUser: registerUser,
-			recordTx:     recordTx,
-			amendTx:      amendTx,
-			summarizeTx:  summarizeTx,
-			queryTx:      queryTx,
-			pageTx:       pageTx,
-			computeSplit: computeSplit,
-			persona:      picker,
-		},
-		queue: newChatQueue(chatIdle),
+		dispatcher:       dispatcher,
+		queue:            newChatQueue(chatIdle),
 	}
 }
 
@@ -148,13 +130,13 @@ func (h *Handler) process(ctx context.Context, v *events.Message, text, stanzaID
 		util.LogError("send typing presence failed", err, "chat_jid", chatJID.String())
 	}
 
-	replies := h.router.handle(ctx, incoming{
-		text:       text,
-		stanzaID:   stanzaID,
-		quotedText: quotedText,
-		senderJID:  senderJID,
-		isGroup:    isGroup,
-		groupID:    groupID,
+	replies := h.dispatcher.Handle(ctx, usecase.Incoming{
+		Text:       text,
+		StanzaID:   stanzaID,
+		QuotedText: quotedText,
+		SenderJID:  senderJID,
+		IsGroup:    isGroup,
+		GroupID:    groupID,
 	})
 
 	if err := h.client.SendChatPresence(ctx, chatJID, types.ChatPresencePaused, types.ChatPresenceMediaText); err != nil {

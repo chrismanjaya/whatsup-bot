@@ -4,7 +4,7 @@
 package message
 
 // Error replies: the wording lives in ErrorPools (pools.go), picked by
-// errors.Is() classification in the whatsapp router.
+// errors.Is() classification in the dispatcher.
 const (
 	// ErrWithCode appends the error's code emoji (ErrorEmoji in pools.go) to
 	// a pooled error reply, so a screenshot tells us which error it was
@@ -104,7 +104,7 @@ How much was it?`
 )
 
 // BotReplyPrefixes are the first words of every reply the bot sends. The
-// whatsapp router ignores incoming messages starting with one of these, as a
+// dispatcher ignores incoming messages starting with one of these, as a
 // fallback self-echo guard behind IsFromMe. Add an entry whenever a new
 // reply template's first line changes.
 var BotReplyPrefixes = []string{

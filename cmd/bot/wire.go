@@ -10,6 +10,7 @@ import (
 	"whatsup-bot/internal/external/database"
 	"whatsup-bot/internal/external/gemini"
 	"whatsup-bot/internal/external/whatsapp"
+	"whatsup-bot/internal/usecase"
 	"whatsup-bot/internal/usecase/group"
 	"whatsup-bot/internal/usecase/persona"
 	"whatsup-bot/internal/usecase/transaction"
@@ -47,20 +48,24 @@ func build(ctx context.Context, cfg config.Config) (*whatsmeow.Client, error) {
 
 	picker := persona.New()
 
-	whatsapp.NewHandler(
-		client,
-		txRepo,
-		pageRepo,
+	dispatcher := usecase.NewDispatcher(
 		user.NewRegisterUseCase(userRepo),
 		transaction.NewRecordUseCase(userRepo, txRepo, parser, picker),
 		transaction.NewAmendUseCase(userRepo, txRepo, parser, picker),
 		transaction.NewSummarizeUseCase(userRepo, txRepo, parser),
 		transaction.NewQueryUseCase(userRepo, txRepo, pageRepo, parser),
 		transaction.NewPageUseCase(userRepo, txRepo, pageRepo),
-		group.NewEnsureUseCase(groupRepo),
-		group.NewEnsureMembershipUseCase(userRepo, groupRepo),
 		group.NewComputeSplitUseCase(groupRepo, txRepo),
 		picker,
+	)
+
+	whatsapp.NewHandler(
+		client,
+		txRepo,
+		pageRepo,
+		group.NewEnsureUseCase(groupRepo),
+		group.NewEnsureMembershipUseCase(userRepo, groupRepo),
+		dispatcher,
 	).Register()
 
 	return client, nil

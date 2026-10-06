@@ -11,7 +11,7 @@ package message
 //     <email>") identical in every variant: only the personality changes.
 //   - Don't start a variant with a BotReplyPrefixes entry.
 //   - Don't use *, _, ~ or ` inside quips (they break WhatsApp formatting).
-//   - No emoji in error variants: the router appends the error's code emoji
+//   - No emoji in error variants: the dispatcher appends the error's code emoji
 //     (ErrorEmoji) at the end, and it must be the only one.
 
 // Lang is the language a reply is written in.
@@ -40,7 +40,7 @@ const (
 )
 
 // QuipPrefix starts every quip message. It marks the message as Frankie's
-// chatter (not a record), and lets the router recognize a reply to a quip
+// chatter (not a record), and lets the dispatcher recognize a reply to a quip
 // from the quoted text alone, with nothing stored.
 const QuipPrefix = "💬 "
 
@@ -98,7 +98,7 @@ var ErrorEmoji = map[int]string{
 const ErrorEmojiDefault = "🧠"
 
 // ErrorPools holds the variants for each error reply. The code emoji is
-// appended by the router (see ErrWithCode), so it's not part of the text.
+// appended by the dispatcher (see ErrWithCode), so it's not part of the text.
 var ErrorPools = map[PoolKey]map[Lang][]string{
 	PoolInvalidRequest: {
 		LangEN: {

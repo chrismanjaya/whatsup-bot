@@ -30,7 +30,7 @@ Built with clean architecture principles — business logic is independent of Wh
       * domain/ # entities + rules (Transaction, User, Group) — no external deps
       * repository/ # storage interfaces the usecases need
       * parser/ # text-parsing interface the usecases need
-      * usecase/ # business logic — depends only on domain + interfaces
+      * usecase/ # business logic — depends only on domain + interfaces; dispatcher.go routes each message
          * transaction/ # record, amend, query, page, summarize
          * user/ # register
          * group/ # group bookkeeping, split
@@ -38,7 +38,7 @@ Built with clean architecture principles — business logic is independent of Wh
          * message/ # all user-facing reply text and templates
          * persona/ # Frankie's reply-variant picker
       * external/
-         * whatsapp/ # whatsmeow integration: client/pairing, event handler, message routing
+         * whatsapp/ # whatsmeow integration: client/pairing, event handler, sending replies
          * gemini/ # LLM-based message parsing
          * database/ # SQLite persistence
       * config/ # env loading + defaults

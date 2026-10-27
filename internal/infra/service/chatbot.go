@@ -184,8 +184,8 @@ func (s *Chatbot) GetSummaryReport(ctx context.Context, jid string, rawText stri
 		topExpenseCategory, _ := result.ExpenseInfo.GetTopTransaction()
 		topIncomeCategory, _ := result.IncomeInfo.GetTopTransaction()
 
-		topExpenseTransaction := result.ExpenseInfo.GetHighestTransactionAmount()
-		topIncomeTransaction := result.IncomeInfo.GetHighestTransactionAmount()
+		topExpenseTransaction := result.ExpenseInfo.GetHighestTransaction()
+		topIncomeTransaction := result.IncomeInfo.GetHighestTransaction()
 
 		summaryExpense := render.NewSummaryInfo(
 			result.ExpenseInfo.Total,

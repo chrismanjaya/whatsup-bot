@@ -22,7 +22,7 @@ type (
 		TotalTransaction   int64
 		CountTransaction   int
 		TopCategory        domain.Category
-		HighestTransaction *domain.Transaction
+		HighestTransaction domain.Transaction
 	}
 )
 
@@ -46,7 +46,7 @@ func NewSummaryInfo(
 	TotalTransaction int64,
 	CountTransaction int,
 	TopCategory domain.Category,
-	HighestTransaction *domain.Transaction,
+	HighestTransaction domain.Transaction,
 ) *SummaryInfo {
 	return &SummaryInfo{
 		TotalTransaction:   TotalTransaction,

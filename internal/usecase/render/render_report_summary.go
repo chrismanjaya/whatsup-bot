@@ -22,7 +22,7 @@ type (
 		TotalTransaction   int64
 		CountTransaction   int
 		TopCategory        domain.Category
-		HighestTransaction int64
+		HighestTransaction *domain.Transaction
 	}
 )
 
@@ -46,7 +46,7 @@ func NewSummaryInfo(
 	TotalTransaction int64,
 	CountTransaction int,
 	TopCategory domain.Category,
-	HighestTransaction int64,
+	HighestTransaction *domain.Transaction,
 ) *SummaryInfo {
 	return &SummaryInfo{
 		TotalTransaction:   TotalTransaction,
@@ -95,7 +95,9 @@ func (r *ReportSummaryResponseSuccess) RenderSuccess() []Reply {
 		templateData.TotalExpense = util.FormatCurrency(r.expenseSummary.TotalTransaction, "IDR", language.English)
 		templateData.ExpenseCount = util.FormatNumber(r.expenseSummary.CountTransaction, language.English)
 		templateData.TopExpenseCategory = r.expenseSummary.TopCategory.String()
-		templateData.BiggestExpense = util.FormatCurrency(r.expenseSummary.HighestTransaction, "IDR", language.English)
+		templateData.BiggestExpense = r.expenseSummary.HighestTransaction.Description
+		templateData.BiggestExpenseAmount = util.FormatCurrency(r.expenseSummary.HighestTransaction.Amount, "IDR", language.English)
+
 	}
 
 	if r.incomeSummary != nil && r.incomeSummary.TotalTransaction > 0 {
@@ -104,7 +106,8 @@ func (r *ReportSummaryResponseSuccess) RenderSuccess() []Reply {
 		templateData.TotalIncome = util.FormatCurrency(r.incomeSummary.TotalTransaction, "IDR", language.English)
 		templateData.IncomeCount = util.FormatNumber(r.incomeSummary.CountTransaction, language.English)
 		templateData.TopIncomeCategory = r.incomeSummary.TopCategory.String()
-		templateData.BiggestIncome = util.FormatCurrency(r.incomeSummary.HighestTransaction, "IDR", language.English)
+		templateData.BiggestIncome = r.incomeSummary.HighestTransaction.Description
+		templateData.BiggestIncomeAmount = util.FormatCurrency(r.incomeSummary.HighestTransaction.Amount, "IDR", language.English)
 	}
 
 	if r.incomeSummary != nil && r.expenseSummary != nil && r.incomeSummary.TotalTransaction > 0 && r.expenseSummary.TotalTransaction > 0 {

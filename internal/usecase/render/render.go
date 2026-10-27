@@ -88,18 +88,20 @@ type (
 
 	// Report summary template data
 	TemplateDataReportSummary struct {
-		StartDate          string
-		EndDate            string
-		TotalExpense       string
-		ExpenseCount       string
-		TotalIncome        string
-		IncomeCount        string
-		TopExpenseCategory string
-		TopIncomeCategory  string
-		BiggestExpense     string
-		BiggestIncome      string
-		TransactionCount   string
-		TransactionList    string
+		StartDate            string
+		EndDate              string
+		TotalExpense         string
+		ExpenseCount         string
+		TotalIncome          string
+		IncomeCount          string
+		TopExpenseCategory   string
+		TopIncomeCategory    string
+		BiggestExpense       string
+		BiggestExpenseAmount string
+		BiggestIncome        string
+		BiggestIncomeAmount  string
+		TransactionCount     string
+		TransactionList      string
 	}
 
 	TemplateDataReportSummaryList struct {

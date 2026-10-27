@@ -123,7 +123,7 @@ func ReportDateFormatted(date time.Time) string {
 }
 
 func convertTransactionType(transactionType domain.TransactionType) string {
-	if typeStr, ok := transactionTypeMapping[transactionType]; ok {
+	if typeStr, ok := transactionTypeMapping[transactionType]; !ok {
 		return "Expense"
 	} else {
 		return typeStr

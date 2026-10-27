@@ -181,8 +181,11 @@ func (s *Chatbot) SplitTransaction(ctx context.Context, jid string, group *domai
 func (s *Chatbot) GetSummaryReport(ctx context.Context, jid string, rawText string, user *domain.User) []render.Reply {
 	result, err := s.getSummaryReport.Execute(ctx, rawText, user)
 	if err == nil && result != nil {
-		topExpenseCategory, topExpenseTransaction := result.ExpenseInfo.GetTopTransaction()
-		topIncomeCategory, topIncomeTransaction := result.IncomeInfo.GetTopTransaction()
+		topExpenseCategory, _ := result.ExpenseInfo.GetTopTransaction()
+		topIncomeCategory, _ := result.IncomeInfo.GetTopTransaction()
+
+		topExpenseTransaction := result.ExpenseInfo.GetHighestTransactionAmount()
+		topIncomeTransaction := result.IncomeInfo.GetHighestTransactionAmount()
 
 		summaryExpense := render.NewSummaryInfo(
 			result.ExpenseInfo.Total,

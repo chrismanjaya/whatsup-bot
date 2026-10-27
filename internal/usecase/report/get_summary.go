@@ -67,6 +67,10 @@ func (s *SummaryInfo) Add(transaction *domain.Transaction) {
 	s.TotalPerCategories[transaction.Category] += transaction.Amount
 }
 
+func (s *SummaryInfo) GetHighestTransactionAmount() int64 {
+	return s.HighestTransaction.Amount
+}
+
 func (s *SummaryInfo) GetTopTransaction() (domain.Category, int64) {
 	var (
 		topCategory      domain.Category

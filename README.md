@@ -1,123 +1,190 @@
-# WhatsUp
+# WhatsUp Bot — WhatsApp finance tracker
 
-A personal WhatsApp bot that tracks income and expenses through natural chat messages — no dedicated app, no manual spreadsheet entry. Send a message like `spent 50k on lunch`, and it's parsed and recorded automatically.
+A personal finance assistant that lives in WhatsApp. Users chat with **Frankie**, a friendly persona who calls them "bos". Frankie records income and expenses from free text in English or Indonesian ("beli kopi 25rb kemarin"), lets users fix or delete an entry by replying to its confirmation, and builds summaries and paginated transaction lists. In group chats it also splits shared expenses.
 
-## How it works
+Built in Go with [whatsmeow](https://github.com/tulir/whatsmeow) (WhatsApp Web protocol), SQLite, and Google Gemini for structured extraction from natural language.
 
-1. You send a WhatsApp message describing a transaction (income or expense).
-2. The bot (running on a self-hosted Go service) receives it via [whatsmeow](https://github.com/tulir/whatsmeow), a WhatsApp multi-device protocol library.
-3. The message is parsed into structured data (type, amount, category) using Google's Gemini API.
-4. The transaction is stored in a local SQLite database for fast queries (recent transactions, summaries, splits).
-5. On request, data can be exported to Google Sheets for a shareable, human-readable report.
+---
 
 ## Features
 
-- Personal expense/income tracking via natural WhatsApp messages (English or Indonesian)
-- Registration gate — only registered senders can use the bot, preventing token abuse
-- Group chat support — track shared/household expenses with automatic cost-splitting by member
-- Fast local queries (SQLite) for things like "last 5 days" without network latency
-- On-demand Google Sheets export for a downloadable report
-- No web frontend, no external database server — runs as a single Go binary
+| Feature | How to use it | Notes |
+|---|---|---|
+| Register | `register <name> <email>` | Required before anything else. |
+| Record a transaction | `buy coffee 5K today`, `gaji 10jt`, `makan siang 35rb kemarin` | Gemini extracts type, amount, category, description and date. Relative dates are resolved in Asia/Jakarta. |
+| Update / delete | Reply to a transaction confirmation: `actually 15k`, `ubah kategori jadi food`, `hapus` | Only the user who recorded it can change it. |
+| Summary report | `summary this month`, `laporan minggu ini`, `rekap agustus` | Expense and income totals, top category, biggest transaction, every line in the period. Max 1 month. |
+| Transaction list | `transaksi kemarin`, `list this week`, `history 1–5 agustus` | 10 per page. Each item can be replied to for update/delete. |
+| Paging | Reply to the `PAGE n/N` message: `next` / `lanjut`, `prev` / `kembali` | |
+| Group split | `split` in a group chat | Equal split of this month's group expenses across members. |
+| Persona replies | Automatic | Errors and quips come from Frankie's message pools, without repeating the last variant. |
+
+Supported categories (single source of truth: `internal/domain/category.go`): food, groceries, household supplies, medicine, health, electronics, fashion, hobby, entertainment, transport, utilities, education, housing, tax, insurance, debt, salary, investment, gift, transfer, other.
+
+---
 
 ## Architecture
 
-Built with clean architecture principles — business logic is independent of WhatsApp, Gemini, and storage specifics, making each piece swappable and testable in isolation.
+Clean Architecture in onion layers: **each layer imports only the layers closer to the center.** The full standard is in [`.agents/skills/go-architecture`](.agents/skills/go-architecture/SKILL.md).
 
-* whatsup-bot/
-   * cmd/
-      * bot/ # main.go (startup/shutdown) + wire.go (dependency wiring)
-   * internal/
-      * domain/ # entities + rules (Transaction, User, Group) — no external deps
-      * repository/ # storage interfaces the usecases need
-      * parser/ # text-parsing interface the usecases need
-      * usecase/ # business logic — depends only on domain + interfaces; dispatcher.go routes each message
-         * transaction/ # record, amend, query, page, summarize
-         * user/ # register
-         * group/ # group bookkeeping, split
-         * response/ # Reply type shared by all usecases
-         * message/ # all user-facing reply text and templates
-         * persona/ # Frankie's reply-variant picker
-      * external/
-         * whatsapp/ # whatsmeow integration: client/pairing, event handler, sending replies
-         * gemini/ # LLM-based message parsing
-         * database/ # SQLite persistence
-      * config/ # env loading + defaults
-      * constant/ # sentinel errors
-      * util/ # logging + error helpers
-   * go.mod
-   * Makefile
-   * .github/
-      * workflows/ # CI/CD (auto-deploy on merge to main)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ cmd/            main.go (lifecycle) · wire.go (composition root)    │
+├─────────────────────────────────────────────────────────────────────┤
+│ internal/infra/                                                     │
+│   delivery/whatsapp   inbound events → per-chat queue → chatbot     │
+│   service             Chatbot: routes a message to usecases         │
+│   external/gemini     MessageParser implementation (LLM)            │
+│   external/whatsapp   whatsmeow client, QR pairing, session store   │
+│   storage/sqlite      client + user/group/transaction repositories  │
+├─────────────────────────────────────────────────────────────────────┤
+│ internal/usecase/                                                   │
+│   transaction (record, amend, split) · report (summary, detail)     │
+│   user (register, validate) · group (validate)                      │
+│   prediction (intent routing) · persona (Frankie) · render (replies)│
+├─────────────────────────────────────────────────────────────────────┤
+│ internal/domain   Transaction, Category, User, Group, ParsedMessage │
+└─────────────────────────────────────────────────────────────────────┘
+ side packages: internal/constant (error codes) · internal/util (wrap, log,
+ format, time) · internal/template (embedded reply templates) · internal/config
+```
 
-## Tech stack
+### Request flow
 
-| Layer | Choice |
+```
+WhatsApp event
+  └─ delivery/whatsapp.Handler.handleEvent      filters self-messages
+       └─ chatQueue.enqueue(chatJID)             one worker per chat, in order, chats in parallel
+            └─ Handler.process
+                 ├─ parseIncomingMessage          text, quoted text, stanza ID, group flag
+                 ├─ service.Chatbot.ProcessIncomingMessage
+                 │    ├─ prediction.PredictAction        keyword routing (no LLM call)
+                 │    ├─ user.Validate / group.Validate
+                 │    └─ usecase.Execute → render.*Response → []render.Reply
+                 │         (errors → persona.Picker → Frankie error message)
+                 └─ for each reply: typing pause → SendMessage → store message ID on
+                    the transaction (so a later reply can amend it)
+```
+
+### Package conventions
+
+- **Usecase** = one struct per business operation with a single `Execute(ctx, …)`. Each feature package has `module.go` (builds its usecases), `port.go` (the interfaces it needs) and one file per operation.
+- **Repository** = one subpackage per aggregate under `infra/storage/sqlite/`, with one file per method and the query constant beside it.
+- **Errors** are `*constant.ErrCode` values. Wrap them with `util.Wrap` / `util.WrapStd`, classify with `errors.Is`, and turn them into Frankie messages at the boundary. See [`go-error-handling`](.agents/skills/go-error-handling/SKILL.md).
+- **User-facing text** lives in `internal/template/*.tmpl` (embedded) and `internal/usecase/persona/pool.go`.
+
+---
+
+## Getting started
+
+### Prerequisites
+- Go **1.26+**
+- A C toolchain (cgo is required by `mattn/go-sqlite3`)
+- A Gemini API key ([Google AI Studio](https://aistudio.google.com/))
+- A WhatsApp account to pair as the bot
+- `golangci-lint` v2 for `make lint`
+
+### Run locally
+```bash
+printf 'GEMINI_API_KEY=...\nGEMINI_MODEL=gemini-3.5-flash-lite\n' > .env   # gitignored
+make run                # first run prints a QR code: scan it in WhatsApp → Linked devices
+```
+The WhatsApp session is stored in `whatsmeow.db`, so later runs reconnect without a QR code.
+
+### Configuration
+
+Read only in `internal/config/config.go`. `make` loads `.env` automatically.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `GEMINI_API_KEY` | yes | — | Gemini API key. Never commit it. |
+| `GEMINI_MODEL` | no | `gemini-3.5-flash-lite` | Lite-tier models have far higher free quotas than Flash. |
+| App DB path | — | `whatsup.db` | Hardcoded today (move to `APP_DB_PATH`). |
+| WhatsApp store path | — | `whatsmeow.db` | Hardcoded today (move to `WA_STORE_PATH`). |
+
+### Make targets
+| Target | Description |
 |---|---|
-| Language | Go |
-| WhatsApp integration | [whatsmeow](https://github.com/tulir/whatsmeow) |
-| Message parsing | Google Gemini API (free tier) |
-| Storage | SQLite (embedded, no separate DB server) |
-| Reporting export | Google Sheets API |
-| Hosting | GCP `e2-micro` (Always Free tier) |
-| Deployment | GitHub Actions → SSH deploy on merge to `main` |
+| `make run` | Run the bot |
+| `make build` / `make build-linux` | Build to `bin/` (Linux cross-compile needs a cgo cross toolchain) |
+| `make test` / `make cover` | Tests with the race detector / coverage report |
+| `make fmt` / `make vet` / `make lint` | Format, vet, golangci-lint |
+| `make check` | fmt + vet + lint + test |
+| `make reset-db` | Delete the app DB (keeps the WhatsApp session) |
+| `make reset-session` | Delete the WhatsApp session (forces QR re-login) |
 
-## Prerequisites
+---
 
-- Go 1.21+
-- A Gemini API key ([Google AI Studio](https://aistudio.google.com/apikey))
-- A Google Cloud service account with access to a target Google Sheet
-- A WhatsApp account to link as the bot
+## Data model
 
-## Setup
+The schema is created on startup (`internal/infra/storage/sqlite/const.go`, `CREATE TABLE IF NOT EXISTS`). There are no migrations yet: a schema change means editing that file and recreating `whatsup.db`.
 
-1. Clone the repo and install dependencies:
-```bash
-   go mod tidy
-```
+| Table | Key columns |
+|---|---|
+| `users` | `id`, `jid` (unique), `name`, `email`, `register_at` |
+| `groups` | `id`, `jid` (unique), `name`, `created_at` |
+| `group_members` | `(group_id, user_id)` PK |
+| `transactions` | `id`, `user_id`, `type` (`CR`/`DB`), `amount` (int, rupiah), `category`, `is_shared`, `group_id`, `message_id` (unique, the bot's confirmation message), `transaction_date` (user-stated), `created_at` (audit) |
 
-2. Set environment variables:
-```bash
-   export GEMINI_API_KEY="your-key-here"
-   export SHEETS_SPREADSHEET_ID="your-sheet-id"
-   export SHEETS_CREDENTIALS_PATH="./service-account.json"
-```
+`transaction_date` is when the money moved, as the user stated it (it can be backdated). `created_at` is when the row was written. Don't conflate them.
 
-3. Run locally to pair your WhatsApp account:
-```bash
-   make run
-```
-   Scan the QR code shown in the terminal with WhatsApp → Linked Devices.
+---
 
-4. Send yourself a test message: `spent 50k on lunch`
+## Error codes
+
+Defined in `internal/constant/error.go`. Users see a Frankie message chosen by code. Logs carry the code and the full error chain.
+
+| Code | Name | Meaning |
+|---|---|---|
+| 400 | `ErrInvalidRequest` | Message not understood |
+| 401 | `ErrInvalidGroup` | Group could not be resolved |
+| 402 | `ErrInvalidUser` | User mismatch / not the owner |
+| 403 | `ErrUserNotRegister` | Sender must register first |
+| 409 | `ErrAlreadyRegister` | Already registered |
+| 500 | `ErrInternal` | Unexpected failure |
+| 503 | `ErrServiceUnavailable` | Gemini unavailable / rate limited |
+| 10001 | `ErrTransactionNotFound` | Replied-to transaction not found |
+| 10002 | `ErrUnclearTransactionDate` | Date could not be resolved |
+| 10003 | `ErrInvalidTransactionType` | Neither income nor expense |
+| 20001 | `ErrReportNotFound` | No transactions in the period |
+| 20002 | `ErrUnclearReportPeriod` | Period could not be resolved |
+| 20003 | `ErrInvalidReportPeriodRange` | Period longer than 1 month |
+
+---
 
 ## Deployment
 
-See `Makefile` for available commands:
+On a push to `main`, `.github/workflows/deploy.yml`:
+1. builds the binary on the GitHub runner,
+2. writes `~/whatsup-bot.env` on the GCP VM from GitHub Secrets (`GEMINI_API_KEY`, `GEMINI_MODEL`),
+3. copies the binary over and restarts the `whatsup-bot` systemd unit, which loads the env through `EnvironmentFile=`.
 
-```bash
-make build-linux   # cross-compile for the GCP VM
-make deploy        # build, copy to VM, restart the service
-make logs          # tail live logs on the VM
-```
+Required secrets: `GCP_SSH_PRIVATE_KEY`, `GCP_VM_IP`, `GCP_VM_USER`, `GEMINI_API_KEY`, `GEMINI_MODEL`. Set configuration only through secrets, never by hand on the VM.
 
-Merges to `main` also trigger an automatic deploy via GitHub Actions (see `.github/workflows/deploy.yml`).
+---
 
-## Usage
+## Known issues (refactor in progress)
 
-| Message | Effect |
+The `refactor/layers` branch is mid-migration to the `infra/` layout. Fix these before merging to `main`:
+
+- `config.Load` must read `GEMINI_API_KEY` from the environment again.
+- Most of the test suite was removed during the refactor. Only routing, message parsing and text matching are covered again; usecase and repository tests still need to be restored.
+- Group lookup, paging and the transaction-type label have functional bugs (see the review notes for the list).
+
+---
+
+## Engineering standards
+
+Team standards are agent skills in [`.agents/skills/`](.agents/skills). Any coding agent, and any human, should follow them:
+
+| Skill | Covers |
 |---|---|
-| `spent 50k on lunch` | Records an outcome transaction |
-| `got salary 15jt` | Records an income transaction |
-| `register <name> <email>` | Registers a new user (required before other commands work) |
-| `split` (in a group) | Summarizes and splits shared expenses among group members |
-| anything unrelated | Politely declined — the bot only handles transactions |
-
-## Security notes
-
-- Only registered WhatsApp numbers can trigger LLM calls (prevents quota abuse).
-- API keys and service account credentials are never committed — see `.gitignore`.
-- The Gemini free tier's data-usage terms apply to processed messages; see [Google's terms](https://ai.google.dev/gemini-api/terms) for details.
-
-## License
-
-Personal project — not intended for public/commercial use.
+| [`go-architecture`](.agents/skills/go-architecture/SKILL.md) | Layers, dependency rule, where code goes, adding a feature |
+| [`go-naming-standard`](.agents/skills/go-naming-standard/SKILL.md) | Packages, files, aliases, types, enums, errors, env vars |
+| [`go-code-style`](.agents/skills/go-code-style/SKILL.md) | Formatting, function shape, concurrency, testing |
+| [`go-error-handling`](.agents/skills/go-error-handling/SKILL.md) | `ErrCode`, wrapping, classification, log once at the boundary |
+| [`go-logging`](.agents/skills/go-logging/SKILL.md) | slog setup, levels, keys, PII redaction |
+| [`go-documentation`](.agents/skills/go-documentation/SKILL.md) | README, doc comments, ADRs, AGENTS.md |
+| [`go-lint`](.agents/skills/go-lint/SKILL.md) | golangci-lint v2 config, depguard layering, CI gates |
+| [`go-security`](.agents/skills/go-security/SKILL.md) | Secrets, authz, LLM prompt injection, PII, CI/CD hardening |
+| [`go-project-boilerplate`](.agents/skills/go-project-boilerplate/SKILL.md) | A runnable, lint-clean skeleton for starting or retrofitting a project |

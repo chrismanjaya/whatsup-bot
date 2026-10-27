@@ -1,6 +1,9 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 type Category string
 
@@ -29,24 +32,37 @@ const (
 )
 
 // AllCategories is the single source of truth for valid categories.
-// Add or remove a category here only — Valid(), the Gemini schema's
-// enum, and the prompt's category list all derive from this slice.
+// Add or remove a category here only — Valid(), the Gemini schema's enum, and the prompt's category list all derive from this slice.
 var AllCategories = []Category{
-	CategoryFood, CategoryGroceries, CategoryHousehold, CategoryMedicine, CategoryHealth,
-	CategoryElectronics, CategoryFashion, CategoryHobby, CategoryEntertainment, CategoryTransport,
-	CategoryUtilities, CategoryEducation, CategoryHousing, CategoryTax, CategoryInsurance,
-	CategoryDebt, CategorySalary, CategoryInvestment, CategoryGift, CategoryTransfer, CategoryOther,
+	CategoryFood,
+	CategoryGroceries,
+	CategoryHousehold,
+	CategoryMedicine,
+	CategoryHealth,
+	CategoryElectronics,
+	CategoryFashion,
+	CategoryHobby,
+	CategoryEntertainment,
+	CategoryTransport,
+	CategoryUtilities,
+	CategoryEducation,
+	CategoryHousing,
+	CategoryTax,
+	CategoryInsurance,
+	CategoryDebt,
+	CategorySalary,
+	CategoryInvestment,
+	CategoryGift,
+	CategoryTransfer,
+	CategoryOther,
 }
 
-func (c Category) String() string { return string(c) }
+func (c Category) String() string {
+	return string(c)
+}
 
 func (c Category) Valid() bool {
-	for _, valid := range AllCategories {
-		if c == valid {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(AllCategories, c)
 }
 
 func ParseCategory(s string) (Category, error) {

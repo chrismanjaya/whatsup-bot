@@ -2,43 +2,53 @@ package user
 
 import (
 	"context"
-	"fmt"
-	"time"
-
-	"whatsup-bot/internal/constant"
-	"whatsup-bot/internal/domain"
-	"whatsup-bot/internal/repository"
-	"whatsup-bot/internal/usecase/message"
-	"whatsup-bot/internal/util"
+	"strings"
+	"whatsupbot/internal/constant"
+	"whatsupbot/internal/domain"
+	"whatsupbot/internal/util"
 )
 
-type RegisterUseCase struct {
-	repo repository.UserRepository
+type Register struct {
+	userRepo UserRepository
 }
 
-func NewRegisterUseCase(repo repository.UserRepository) *RegisterUseCase {
-	return &RegisterUseCase{repo: repo}
+func NewRegister(userRepo UserRepository) *Register {
+	return &Register{userRepo: userRepo}
 }
 
-func (uc *RegisterUseCase) Execute(ctx context.Context, jid, name, email string) (string, error) {
-	existing, err := uc.repo.FindByJID(ctx, jid)
+func (uc *Register) Execute(ctx context.Context, jid, rawText string) (*domain.User, error) {
+	// find existing user
+	existing, err := uc.userRepo.FindByJID(ctx, jid)
 	if err != nil {
-		return "", util.WrapStd(constant.ErrInternal, "lookup user failed", err)
+		return nil, util.WrapStd(constant.ErrInternal, "lookup user failed", err)
 	}
+
 	if existing != nil {
-		return "", util.Wrap(constant.ErrAlreadyExists, "user already registered")
+		return existing, nil
 	}
 
-	user := &domain.User{
-		JID:        jid,
-		Name:       name,
-		Email:      email,
-		RegisterAt: time.Now(),
+	// register new user
+	newUser := constractUser(jid, rawText)
+	if newUser == nil {
+		return nil, util.WrapStd(constant.ErrInternal, "invalid user message", nil)
 	}
 
-	if err := uc.repo.Save(ctx, user); err != nil {
-		return "", util.WrapStd(constant.ErrInternal, "failed to save user", err)
+	if err = uc.userRepo.Create(ctx, newUser); err != nil {
+		return nil, util.WrapStd(constant.ErrInternal, "failed to create user", err)
 	}
 
-	return fmt.Sprintf(message.Welcome, name), nil
+	return newUser, nil
+}
+
+func constractUser(jid, rawText string) *domain.User {
+	parts := strings.Fields(rawText)
+	if len(parts) < 3 {
+		return nil
+	}
+
+	return &domain.User{
+		JID:   jid,
+		Name:  parts[1],
+		Email: parts[2],
+	}
 }

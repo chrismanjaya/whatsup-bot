@@ -1,57 +1,84 @@
-BINARY_NAME := whatsup-bot
-CMD_PATH    := ./cmd/bot
-BUILD_DIR   := ./bin
+APP_NAME   := whatsupbot
+CMD_DIR    := ./cmd
+BIN_DIR    := bin
+BIN        := $(BIN_DIR)/$(APP_NAME)
 
-# GCP VM connection details (adjust to your actual values)
-VM_USER := your_ssh_user
-VM_HOST := your_vm_external_ip
-VM_PATH := ~/whatsup-bot
+GO         ?= go
+GOFLAGS    ?=
+LDFLAGS    ?= -s -w
+# sqlite3 driver (mattn/go-sqlite3) needs cgo
+CGO_ENABLED ?= 1
 
-.PHONY: all build run test tidy fmt vet clean build-linux deploy restart logs
+# Cross-compile target for deploy (override: make build-linux GOARCH=arm64)
+GOOS_LINUX ?= linux
+GOARCH     ?= amd64
 
-all: build
+# Load local env vars (GEMINI_API_KEY, GEMINI_MODEL, ...) if present
+ENV_FILE   ?= .env
+ifneq (,$(wildcard $(ENV_FILE)))
+include $(ENV_FILE)
+export
+endif
 
-## Build binary for local development (matches your current OS/arch)
-build:
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_PATH)
+.DEFAULT_GOAL := help
 
-## Run the bot locally (foreground, for QR pairing / local testing)
-run:
-	go run $(CMD_PATH)
+.PHONY: help
+help: ## Show available targets
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-## Run all tests
-test:
-	go test ./... -v
+.PHONY: run
+run: ## Run the bot locally
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) run $(GOFLAGS) $(CMD_DIR)
 
-## Tidy go.mod / go.sum
-tidy:
-	go mod tidy
+.PHONY: build
+build: ## Build binary into bin/
+	@mkdir -p $(BIN_DIR)
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN) $(CMD_DIR)
 
-## Format all Go files
-fmt:
-	gofmt -l -w .
+.PHONY: build-linux
+build-linux: ## Cross-compile for linux (requires a cgo cross toolchain, e.g. zig cc)
+	@mkdir -p $(BIN_DIR)
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH) \
+		$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN)-$(GOOS_LINUX)-$(GOARCH) $(CMD_DIR)
 
-## Run go vet for static checks
-vet:
-	go vet ./...
+.PHONY: test
+test: ## Run tests with race detector
+	CGO_ENABLED=1 $(GO) test -race -count=1 ./...
 
-## Remove build artifacts
-clean:
-	rm -rf $(BUILD_DIR)
+.PHONY: cover
+cover: ## Run tests with coverage report
+	@mkdir -p $(BIN_DIR)
+	$(GO) test -coverprofile=$(BIN_DIR)/coverage.out ./...
+	$(GO) tool cover -func=$(BIN_DIR)/coverage.out
 
-## Cross-compile for the GCP VM (Linux amd64, matches e2-micro)
-build-linux:
-	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux $(CMD_PATH)
+.PHONY: fmt
+fmt: ## Format code
+	$(GO) fmt ./...
 
-## Copy the compiled Linux binary + restart the systemd service on the VM
-deploy: build-linux
-	scp $(BUILD_DIR)/$(BINARY_NAME)-linux $(VM_USER)@$(VM_HOST):$(VM_PATH)/$(BINARY_NAME)
-	ssh $(VM_USER)@$(VM_HOST) "sudo systemctl restart $(BINARY_NAME)"
+.PHONY: vet
+vet: ## Run go vet
+	$(GO) vet ./...
 
-## Restart the service on the VM without redeploying (e.g. after config change)
-restart:
-	ssh $(VM_USER)@$(VM_HOST) "sudo systemctl restart $(BINARY_NAME)"
+.PHONY: lint
+lint: ## Run golangci-lint
+	golangci-lint run ./...
 
-## Tail the service logs on the VM
-logs:
-	ssh $(VM_USER)@$(VM_HOST) "sudo journalctl -u $(BINARY_NAME) -f"
+.PHONY: tidy
+tidy: ## Tidy and verify go modules
+	$(GO) mod tidy
+	$(GO) mod verify
+
+.PHONY: check
+check: fmt vet lint test ## Run fmt, vet, lint and test
+
+.PHONY: clean
+clean: ## Remove build artifacts
+	rm -rf $(BIN_DIR) cmd/cmd
+
+.PHONY: reset-db
+reset-db: ## Delete local app DB (keeps WhatsApp session)
+	rm -f whatsup.db
+
+.PHONY: reset-session
+reset-session: ## Delete WhatsApp session store (forces QR re-login)
+	rm -f whatsmeow.db

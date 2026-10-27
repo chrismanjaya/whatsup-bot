@@ -4,21 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
-	"whatsup-bot/internal/constant"
+	"whatsupbot/internal/constant"
 )
 
-// Wrap adds msg as context to err, in the standard "msg: err" shape used
-// throughout the app. err may itself be a constant.ErrCode, for a business
-// error with no lower-level cause.
+// Wrap adds msg as context to err, in the standard "msg: err" shape used throughout the app. err may itself be a *constant.ErrCode, for a business error with no lower-level cause.
 func Wrap(err error, msg string) error {
+	slog.Warn(msg, "error", err)
 	return fmt.Errorf("%s: %w", msg, err)
 }
 
-// WrapStd classifies cause with a standard error code while keeping cause in
-// the chain, so callers can classify the failure with
-// errors.Is(err, constant.ErrXxx) without losing the underlying detail.
+// WrapStd classifies cause with a standard error code while keeping cause in the chain, so callers can classify the failure with errors.Is(err, constant.ErrXxx) without losing the underlying detail.
 func WrapStd(code *constant.ErrCode, msg string, cause error) error {
+	slog.Warn(msg, "error", cause)
 	return fmt.Errorf("%s: %w: %w", msg, code, cause)
 }
 
@@ -31,8 +28,7 @@ func CodeOf(err error) (*constant.ErrCode, bool) {
 	return nil, false
 }
 
-// Fatal logs err at Error level under msg, then panics. Use it for
-// unrecoverable startup failures.
+// Fatal logs err at Error level under msg, then panics. Use it for unrecoverable startup failures.
 func Fatal(msg string, err error) {
 	slog.Error(msg, "error", err)
 	panic(err)

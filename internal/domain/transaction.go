@@ -7,27 +7,29 @@ import (
 
 const (
 	Income  TransactionType = "CR"
-	Outcome TransactionType = "DB"
+	Expense TransactionType = "DB"
 )
 
 type (
 	TransactionType string
 
 	Transaction struct {
-		ID              int64           `json:"id"`
-		UserID          int64           `json:"user_id"`
-		Description     string          `json:"description"`
-		Type            TransactionType `json:"type"`
-		Amount          int64           `json:"amount"`
-		Category        Category        `json:"category"`
-		IsShared        bool            `json:"is_shared"`
-		GroupID         int64           `json:"group_id"`
-		TransactionDate time.Time       `json:"transaction_date"`
-		CreatedAt       time.Time       `json:"created_at"`
-		// WAMessageID is the WhatsApp message ID of the confirmation reply the
-		// bot sent for this transaction, so a later reply to that message can
-		// be matched back to it for updates/deletes.
-		WAMessageID string `json:"wa_message_id,omitempty"`
+		ID              int64
+		UserID          int64
+		Description     string
+		Type            TransactionType
+		Amount          int64
+		Category        Category
+		IsShared        bool
+		GroupID         *int64
+		MessageID       *string
+		TransactionDate time.Time
+		CreatedAt       time.Time
+	}
+
+	TransactionPeriod struct {
+		Start time.Time
+		End   time.Time
 	}
 )
 
@@ -39,16 +41,14 @@ func (t TransactionType) String() string {
 // Valid reports whether t is one of the defined enum values.
 func (t TransactionType) Valid() bool {
 	switch t {
-	case Income, Outcome:
+	case Income, Expense:
 		return true
 	default:
 		return false
 	}
 }
 
-// ParseTransactionType safely converts an external string (e.g. from the
-// Gemini adapter or a DB row) into a TransactionType, rejecting anything
-// that isn't a known value instead of silently accepting garbage.
+// ParseTransactionType safely converts an external string (e.g. from the Gemini adapter or a DB row) into a TransactionType, rejecting anything that isn't a known value instead of silently accepting garbage.
 func ParseTransactionType(s string) (TransactionType, error) {
 	t := TransactionType(s)
 	if !t.Valid() {

@@ -1,0 +1,57 @@
+package gemini
+
+import "whatsupbot/internal/domain"
+
+type geminiRecordResponse struct {
+	Valid       bool   `json:"valid"`
+	Type        string `json:"type"`
+	Amount      int64  `json:"amount"`
+	Category    string `json:"category"`
+	Description string `json:"description"`
+	Date        string `json:"date"`
+	Quip        string `json:"quip"`
+}
+
+type geminiAmendResponse struct {
+	Action      string `json:"action"`
+	Type        string `json:"type"`
+	Amount      int64  `json:"amount"`
+	Category    string `json:"category"`
+	Description string `json:"description"`
+	Date        string `json:"date"`
+}
+
+type geminiQueryResponse struct {
+	IsQuery   bool   `json:"is_query"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+
+type geminiSummaryResponse struct {
+	IsSummary bool   `json:"is_summary"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+
+func categoryEnum() []string {
+	values := make([]string, len(domain.AllCategories))
+	for i, c := range domain.AllCategories {
+		values[i] = c.String()
+	}
+	return values
+}
+
+func transactionTypeEnum() []string {
+	return []string{
+		domain.Income.String(),
+		domain.Expense.String(),
+	}
+}
+
+func actionEnum() []string {
+	return []string{
+		domain.TRANSACTION_ACTION_NONE,
+		domain.TRANSACTION_ACTION_UPDATE,
+		domain.TRANSACTION_ACTION_DELETE,
+	}
+}

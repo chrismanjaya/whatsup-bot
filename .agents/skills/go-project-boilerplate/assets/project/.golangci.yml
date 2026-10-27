@@ -1,0 +1,119 @@
+# golangci-lint v2 config. Replace example.com/app with your module path.
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    # correctness
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - nilerr
+    - errorlint
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - noctx
+    - exhaustive
+    # security
+    - gosec
+    # architecture
+    - depguard
+    # style & hygiene
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+    - gocritic
+    - nolintlint
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+    exhaustive:
+      default-signifies-exhaustive: true
+    misspell:
+      locale: US
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+          arguments: ["disableStutteringCheck"]
+        - name: var-naming
+        - name: receiver-naming
+        - name: error-strings
+        - name: error-return
+        - name: errorf
+        - name: context-as-argument
+        - name: if-return
+        - name: indent-error-flow
+        - name: unused-parameter
+        - name: blank-imports
+    gocritic:
+      enabled-tags: [diagnostic]
+    depguard:
+      # Onion layering: each layer imports only layers closer to the center.
+      rules:
+        domain:
+          files: ["**/internal/domain/**"]
+          deny:
+            - pkg: example.com/app/internal/usecase
+              desc: domain is the center; it must not import usecases
+            - pkg: example.com/app/internal/infra
+              desc: domain must not import infrastructure
+            - pkg: example.com/app/internal/util
+              desc: domain stays free of app helpers
+        usecase:
+          files: ["**/internal/usecase/**"]
+          deny:
+            - pkg: example.com/app/internal/infra
+              desc: usecases depend on ports (interfaces), never on infra
+            - pkg: example.com/app/internal/config
+              desc: config is read only by cmd; pass values in via constructors
+            - pkg: database/sql
+              desc: storage belongs in infra/storage
+            - pkg: net/http
+              desc: transport belongs in infra/delivery
+        shared:
+          files: ["**/internal/constant/**", "**/internal/util/**"]
+          deny:
+            - pkg: example.com/app/internal/usecase
+              desc: side packages must not import layer packages
+            - pkg: example.com/app/internal/infra
+              desc: side packages must not import layer packages
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck, unparam]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - example.com/app
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

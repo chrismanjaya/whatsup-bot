@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-const defaultGeminiModel = "gemini-3.6-flash"
+const defaultGeminiModel = "gemini-3.5-flash-lite"
 
 // Config holds everything read from the environment at startup. In
 // production the env comes from ~/whatsup-bot.env via systemd's

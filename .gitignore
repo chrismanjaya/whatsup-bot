@@ -1,4 +1,5 @@
 whatsmeow.db
-transactions.db
+whatsup.db
 *.env
 service-account.json
+/bin

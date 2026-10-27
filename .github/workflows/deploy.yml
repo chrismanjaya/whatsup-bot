@@ -15,8 +15,14 @@ jobs:
         with:
           go-version: '1.26.6'
 
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -count=1 ./...
+
       - name: Build binary
-        run: go build -o whatsup-bot ./cmd/bot
+        run: go build -trimpath -o whatsup-bot ./cmd
 
       - name: Set up SSH
         run: |

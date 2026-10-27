@@ -46,7 +46,7 @@ type (
 )
 
 const (
-	defaultGetDetailLimit  = 2
+	defaultGetDetailLimit  = 10
 	defaultGetDetailOffset = 0
 
 	quotedPeriodDateLayout = "02/01/06"

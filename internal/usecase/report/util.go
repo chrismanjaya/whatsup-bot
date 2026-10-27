@@ -38,8 +38,8 @@ func ValidateTransactionRange(transactionPeriod *domain.TransactionPeriod) bool 
 		return false
 	}
 
-	// period exceed 1 month
-	if !transactionPeriod.End.Before(transactionPeriod.Start.AddDate(0, 1, 0)) {
+	// period exceed 3 month
+	if !transactionPeriod.End.Before(transactionPeriod.Start.AddDate(0, 3, 0)) {
 		return false
 	}
 

@@ -89,7 +89,7 @@ func (r *ReportSummaryResponseSuccess) RenderSuccess() []Reply {
 		TransactionList:  strings.Join(summaryTransactionMessage, "\n"),
 	}
 
-	if r.expenseSummary != nil && r.expenseSummary.TotalTransaction > 0 {
+	if r.expenseSummary != nil && r.expenseSummary.CountTransaction > 0 {
 		reportSummaryTemplateName = templateNameReportSummaryExpenseOnly
 
 		templateData.TotalExpense = util.FormatCurrency(r.expenseSummary.TotalTransaction, "IDR", language.English)
@@ -100,7 +100,7 @@ func (r *ReportSummaryResponseSuccess) RenderSuccess() []Reply {
 
 	}
 
-	if r.incomeSummary != nil && r.incomeSummary.TotalTransaction > 0 {
+	if r.incomeSummary != nil && r.incomeSummary.CountTransaction > 0 {
 		reportSummaryTemplateName = templateNameReportSummaryIncomeOnly
 
 		templateData.TotalIncome = util.FormatCurrency(r.incomeSummary.TotalTransaction, "IDR", language.English)
@@ -110,7 +110,7 @@ func (r *ReportSummaryResponseSuccess) RenderSuccess() []Reply {
 		templateData.BiggestIncomeAmount = util.FormatCurrency(r.incomeSummary.HighestTransaction.Amount, "IDR", language.English)
 	}
 
-	if r.incomeSummary != nil && r.expenseSummary != nil && r.incomeSummary.TotalTransaction > 0 && r.expenseSummary.TotalTransaction > 0 {
+	if r.incomeSummary != nil && r.expenseSummary != nil && r.incomeSummary.CountTransaction > 0 && r.expenseSummary.CountTransaction > 0 {
 		reportSummaryTemplateName = templateNameReportSummary
 	}
 

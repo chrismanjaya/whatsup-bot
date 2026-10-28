@@ -16,19 +16,22 @@ const (
 			user_id = ?
 			AND substr(transaction_date, 1, 10) >= ?
 			AND substr(transaction_date, 1, 10) <= ?
+			AND (? = '' OR type = ?)
 		ORDER BY transaction_date ASC, id ASC 
 		LIMIT ? 
 		OFFSET ?
 	`
 )
 
-func (r *Repository) GetListByPeriod(ctx context.Context, userID int64, from, to time.Time, limit, offset int) ([]*domain.Transaction, int, error) {
+func (r *Repository) GetListByPeriod(ctx context.Context, userID int64, from, to time.Time, transactionType domain.TransactionType, limit, offset int) ([]*domain.Transaction, int, error) {
 	fromStr, toStr := from.Format(dateFormat), to.Format(dateFormat)
 
 	rows, err := r.db.QueryContext(ctx, listTransactionQuery,
 		userID,
 		fromStr,
 		toStr,
+		transactionType.String(),
+		transactionType.String(),
 		limit,
 		offset,
 	)

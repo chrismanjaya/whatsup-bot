@@ -62,10 +62,15 @@ const (
 		- No period stated at all (e.g. just "summary") -> first day of this month to today.
 		- When the year is not stated, use the most recent occurrence that is not in the future. end_date is never after today.
 
-		Respond with ONLY raw JSON, no markdown or explanation:
-		{"is_summary": true|false, "start_date": "<YYYY-MM-DD>", "end_date": "<YYYY-MM-DD>"}
+		Decide which transaction type the summary is about:
+		- "DB" = only expenses, when the user explicitly asks for expenses (e.g. "summary expense this month", "expense report", "rekap pengeluaran bulan ini", "laporan belanja minggu ini").
+		- "CR" = only income, when the user explicitly asks for income (e.g. "summary income this month", "income report", "rekap pemasukan bulan ini", "laporan pendapatan").
+		- "ALL" = both, when no type is stated or both are asked (e.g. "summary report this month", "laporan bulan ini", "rekap pemasukan dan pengeluaran").
 
-		A message that REPORTS a new transaction (e.g. "bayar laporan pajak 50k") or asks to list individual transactions (e.g. "transaksi kemarin") is NOT a summary: {"is_summary": false, "start_date": "%s", "end_date": "%s"}. start_date <= end_date.
+		Respond with ONLY raw JSON, no markdown or explanation:
+		{"is_summary": true|false, "type": "ALL"|"CR"|"DB", "start_date": "<YYYY-MM-DD>", "end_date": "<YYYY-MM-DD>"}
+
+		A message that REPORTS a new transaction (e.g. "bayar laporan pajak 50k") or asks to list individual transactions (e.g. "transaksi kemarin") is NOT a summary: {"is_summary": false, "type": "ALL", "start_date": "%s", "end_date": "%s"}. start_date <= end_date.
 	`
 
 	reportDetailInstructionTemplate = `

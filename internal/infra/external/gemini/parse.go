@@ -17,6 +17,8 @@ import (
 const (
 	defaultResponseMIMEType = "application/json"
 
+	summaryTypeAll = "ALL"
+
 	maxAttempt        = 3
 	initialRetryDelay = 500 * time.Millisecond
 )
@@ -197,10 +199,11 @@ func (c *Client) ParseReportSummaryMessage(ctx context.Context, rawMessage strin
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{
 				"is_summary": {Type: genai.TypeBoolean},
+				"type":       {Type: genai.TypeString, Enum: summaryTypeEnum()},
 				"start_date": {Type: genai.TypeString},
 				"end_date":   {Type: genai.TypeString},
 			},
-			Required: []string{"is_summary", "start_date", "end_date"},
+			Required: []string{"is_summary", "type", "start_date", "end_date"},
 		},
 	}
 
@@ -219,6 +222,7 @@ func (c *Client) ParseReportSummaryMessage(ctx context.Context, rawMessage strin
 
 	slog.Info("gemini parsed message",
 		"is_summary", response.IsSummary,
+		"type", response.Type,
 		"start_date", response.StartDate,
 		"end_date", response.EndDate,
 	)
@@ -228,12 +232,19 @@ func (c *Client) ParseReportSummaryMessage(ctx context.Context, rawMessage strin
 		isValid = false
 	}
 
+	// unknown or "ALL" type falls back to summarizing every transaction type
+	summaryType, err := domain.ParseTransactionType(response.Type)
+	if err != nil {
+		summaryType = ""
+	}
+
 	return &domain.ParsedMessage{
 		Valid: isValid,
 		ReportMessage: &domain.ParsedReportMessage{
 			StartDate:  response.StartDate,
 			EndDate:    response.EndDate,
 			DateLayout: "2006-01-02",
+			Type:       summaryType,
 		},
 	}, nil
 }

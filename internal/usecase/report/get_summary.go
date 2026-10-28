@@ -119,6 +119,7 @@ func (uc *GetSummary) Execute(ctx context.Context, rawText string, user *domain.
 		userID,
 		transactionPeriod.Start,
 		transactionPeriod.End,
+		message.ReportMessage.Type,
 		defaultGetSummaryLimit,
 		defaultGetSummaryOffset,
 	)

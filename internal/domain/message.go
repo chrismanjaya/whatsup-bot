@@ -28,6 +28,7 @@ type (
 		EndDate    string
 		Offset     int
 		DateLayout string
+		Type       TransactionType // empty means all transaction types
 	}
 )
 

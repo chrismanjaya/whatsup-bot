@@ -29,6 +29,7 @@ type geminiQueryResponse struct {
 
 type geminiSummaryResponse struct {
 	IsSummary bool   `json:"is_summary"`
+	Type      string `json:"type"`
 	StartDate string `json:"start_date"`
 	EndDate   string `json:"end_date"`
 }
@@ -43,6 +44,14 @@ func categoryEnum() []string {
 
 func transactionTypeEnum() []string {
 	return []string{
+		domain.Income.String(),
+		domain.Expense.String(),
+	}
+}
+
+func summaryTypeEnum() []string {
+	return []string{
+		summaryTypeAll,
 		domain.Income.String(),
 		domain.Expense.String(),
 	}

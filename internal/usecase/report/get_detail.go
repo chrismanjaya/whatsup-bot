@@ -101,6 +101,7 @@ func (uc *GetDetail) GetDetailFirstPage(ctx context.Context, rawText string, use
 		userID,
 		transactionPeriod.Start,
 		transactionPeriod.End,
+		"", // all transaction types
 		defaultGetDetailLimit,
 		defaultGetDetailOffset,
 	)
@@ -137,6 +138,7 @@ func (uc *GetDetail) GetDetailSpecificPage(ctx context.Context, rawText, quotedT
 		userID,
 		transactionPeriod.Start,
 		transactionPeriod.End,
+		"", // all transaction types
 		defaultGetDetailLimit,
 		reportMessage.Offset,
 	)

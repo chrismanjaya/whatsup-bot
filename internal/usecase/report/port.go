@@ -16,7 +16,7 @@ type (
 		FindByMessage(ctx context.Context, messageID string) (*domain.Transaction, error)
 		FindByUser(ctx context.Context, userID int64, since time.Time) ([]*domain.Transaction, error)
 
-		GetListByPeriod(ctx context.Context, userID int64, from, to time.Time, limit, offset int) ([]*domain.Transaction, int, error)
+		GetListByPeriod(ctx context.Context, userID int64, from, to time.Time, transactionType domain.TransactionType, limit, offset int) ([]*domain.Transaction, int, error)
 
 		SetMessage(ctx context.Context, transactionID int64, messageID string) error
 	}

@@ -49,9 +49,17 @@ func NewHandler(
 	tools := &transactionTools{mcpService: mcpService}
 	tools.register(mcpServer)
 
-	mcpHandler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server {
-		return mcpServer
-	}, &mcpsdk.StreamableHTTPOptions{Stateless: true})
+	mcpHandler := mcpsdk.NewStreamableHTTPHandler(
+		func(*http.Request) *mcpsdk.Server {
+			return mcpServer
+		},
+		&mcpsdk.StreamableHTTPOptions{
+			Stateless: true,
+			// behind Caddy every request arrives on localhost with the public Host header, which the sdk's
+			// dns rebinding guard rejects with 403. Safe to disable: every request needs a per-user bearer token.
+			DisableLocalhostProtection: true,
+		},
+	)
 
 	mux := http.NewServeMux()
 	mux.Handle(endpointPath, auth.RequireBearerToken(tokenVerifier(mcpService), nil)(mcpHandler))

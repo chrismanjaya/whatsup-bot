@@ -40,6 +40,8 @@ const (
 	templateNameReportSummaryIncomeOnly  = "report_summary_income_only.tmpl"
 
 	templateNameGimmick = "gimmick.tmpl"
+
+	templateNameMCPToken = "mcp_token.tmpl"
 )
 
 type (
@@ -113,6 +115,11 @@ type (
 	// Gimmick template data
 	TemplateDataGimmick struct {
 		Quip string
+	}
+
+	// MCP token template data
+	TemplateDataMCPToken struct {
+		MCPURL string
 	}
 )
 

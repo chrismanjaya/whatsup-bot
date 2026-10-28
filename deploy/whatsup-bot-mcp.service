@@ -1,0 +1,26 @@
+# MCP server for whatsup-bot. Installed by .github/workflows/deploy.yml, which
+# fills __USER__ and __WORKDIR__ from the whatsup-bot unit so both processes
+# open the same whatsup.db.
+[Unit]
+Description=WhatsUp bot MCP server
+After=network-online.target whatsup-bot.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__WORKDIR__
+ExecStart=__WORKDIR__/whatsup-bot-mcp
+# localhost only: Caddy terminates TLS and proxies /mcp here
+Environment=MCP_ADDR=127.0.0.1:8080
+Restart=on-failure
+RestartSec=5
+
+# hardening: the server only needs its working directory (sqlite + WAL files)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=__WORKDIR__
+
+[Install]
+WantedBy=multi-user.target

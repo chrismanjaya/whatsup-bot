@@ -41,6 +41,14 @@ const (
 			FOREIGN KEY (group_id) REFERENCES groups(id)
 		);
 
+		CREATE TABLE IF NOT EXISTS mcp_tokens (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id    INTEGER NOT NULL UNIQUE,
+			token_hash TEXT NOT NULL UNIQUE,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id)
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_transactions_user_date  ON transactions(user_id, transaction_date);
 		CREATE INDEX IF NOT EXISTS idx_transactions_group_date ON transactions(group_id, transaction_date);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_message_id ON transactions(message_id);

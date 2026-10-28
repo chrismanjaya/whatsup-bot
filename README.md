@@ -29,11 +29,12 @@ Clean Architecture in onion layers: **each layer imports only the layers closer 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ cmd/            main.go (lifecycle) · wire.go (composition root)    │
+│ cmd/bot, cmd/mcp  main.go (lifecycle) · wire.go (composition root)  │
 ├─────────────────────────────────────────────────────────────────────┤
 │ internal/infra/                                                     │
 │   delivery/whatsapp   inbound events → per-chat queue → chatbot     │
-│   service             Chatbot: routes a message to usecases         │
+│   delivery/mcp        MCP over HTTP, per-user bearer token          │
+│   service             Chatbot / MCP: route a request to usecases    │
 │   external/gemini     MessageParser implementation (LLM)            │
 │   external/whatsapp   whatsmeow client, QR pairing, session store   │
 │   storage/sqlite      client + user/group/transaction repositories  │
@@ -154,12 +155,26 @@ Defined in `internal/constant/error.go`. Users see a Frankie message chosen by c
 
 ## Deployment
 
-On a push to `main`, `.github/workflows/deploy.yml`:
-1. builds the binary on the GitHub runner,
-2. writes `~/whatsup-bot.env` on the GCP VM from GitHub Secrets (`GEMINI_API_KEY`, `GEMINI_MODEL`),
-3. copies the binary over and restarts the `whatsup-bot` systemd unit, which loads the env through `EnvironmentFile=`.
+Two binaries share one SQLite file (`whatsup.db`, WAL mode so the MCP server reads while the bot writes):
 
-Required secrets: `GCP_SSH_PRIVATE_KEY`, `GCP_VM_IP`, `GCP_VM_USER`, `GEMINI_API_KEY`, `GEMINI_MODEL`. Set configuration only through secrets, never by hand on the VM.
+| Binary | Source | systemd unit | Listens |
+|---|---|---|---|
+| `whatsup-bot` | `cmd/bot` | `whatsup-bot` | WhatsApp only |
+| `whatsup-bot-mcp` | `cmd/mcp` | `whatsup-bot-mcp` ([`deploy/whatsup-bot-mcp.service`](deploy/whatsup-bot-mcp.service)) | `127.0.0.1:8080`, behind Caddy |
+
+On a push to `main`, `.github/workflows/deploy.yml`:
+1. builds both binaries on the GitHub runner,
+2. writes `~/whatsup-bot.env` on the GCP VM from GitHub Secrets (`GEMINI_API_KEY`, `GEMINI_MODEL`, `MCP_URL`),
+3. copies the bot binary over and restarts the `whatsup-bot` systemd unit, which loads the env through `EnvironmentFile=`,
+4. copies the MCP binary, installs the `whatsup-bot-mcp` unit with the same `User=` and `WorkingDirectory=` as `whatsup-bot`, and restarts it.
+
+Required secrets: `GCP_SSH_PRIVATE_KEY`, `GCP_VM_IP`, `GCP_VM_USER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `MCP_URL` (public URL users connect to, e.g. `https://mcp.example.com/mcp`). Set configuration only through secrets, never by hand on the VM.
+
+One-time Caddy setup on the VM: add the site block from [`deploy/Caddyfile`](deploy/Caddyfile) to `/etc/caddy/Caddyfile` with your domain, then `sudo systemctl reload caddy`.
+
+### MCP access
+
+A registered user sends `mcp` to the bot in a private chat and gets the MCP URL plus a personal bearer token (sending `mcp` again replaces it). Their AI tool connects with `Authorization: Bearer <token>` and can call `get_transaction_list` (period up to 6 months, paged) for that user's transactions only.
 
 ---
 

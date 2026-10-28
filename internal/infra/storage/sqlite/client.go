@@ -23,7 +23,8 @@ const (
 	driverName  = "sqlite3"
 	busyTimeout = 5000
 
-	dataSourceNameTemplate = "file:%s?_foreign_keys=on&_busy_timeout=%d"
+	// WAL lets the mcp server read while the bot writes to the same file
+	dataSourceNameTemplate = "file:%s?_foreign_keys=on&_busy_timeout=%d&_journal_mode=WAL"
 )
 
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {

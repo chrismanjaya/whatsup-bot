@@ -1,0 +1,14 @@
+# Site block for the MCP server. Add it to /etc/caddy/Caddyfile on the VM,
+# replace mcp.example.com with your domain (its DNS A record must point at the
+# VM), then: sudo systemctl reload caddy
+# Caddy gets the TLS certificate automatically. Set the MCP_URL secret to
+# https://mcp.example.com/mcp so the bot sends users the right URL.
+mcp.example.com {
+	handle /mcp {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	handle {
+		respond 404
+	}
+}

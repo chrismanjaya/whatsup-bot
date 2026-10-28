@@ -153,5 +153,15 @@ var (
 				"Frankie sniffed the coins and still can't tell. Is it something you got, or something you paid?",
 			},
 		},
+
+		// integration errors
+		constant.ErrPrivateChatOnly.Code: {
+			Emoji: "🔐",
+			Messages: []string{
+				"Psst, bos... that key is secret! Ask me for *mcp* in our private chat, not in a group.",
+				"*hides the key behind back* ...not here! Send *mcp* to me in a private chat.",
+				"My lab, my rules: secret keys are only handed over in private. Send *mcp* to me directly.",
+			},
+		},
 	}
 )

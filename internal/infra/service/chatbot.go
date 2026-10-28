@@ -5,6 +5,7 @@ import (
 	"whatsupbot/internal/constant"
 	"whatsupbot/internal/domain"
 	groupuc "whatsupbot/internal/usecase/group"
+	integrationuc "whatsupbot/internal/usecase/integration"
 	personauc "whatsupbot/internal/usecase/persona"
 	predictionuc "whatsupbot/internal/usecase/prediction"
 	"whatsupbot/internal/usecase/render"
@@ -31,6 +32,9 @@ type Chatbot struct {
 	getDetailReport  *reportuc.GetDetail
 	getSummaryReport *reportuc.GetSummary
 
+	// integration usecase
+	generateMCPToken *integrationuc.GenerateMCPToken
+
 	// persona usecase
 	picker *personauc.Picker
 }
@@ -44,6 +48,7 @@ func NewChatbot(
 	validateUser *useruc.Validate,
 	getDetailReport *reportuc.GetDetail,
 	getSummaryReport *reportuc.GetSummary,
+	generateMCPToken *integrationuc.GenerateMCPToken,
 	picker *personauc.Picker,
 ) *Chatbot {
 	return &Chatbot{
@@ -55,6 +60,7 @@ func NewChatbot(
 		validateUser:      validateUser,
 		getDetailReport:   getDetailReport,
 		getSummaryReport:  getSummaryReport,
+		generateMCPToken:  generateMCPToken,
 		picker:            picker,
 	}
 }
@@ -134,6 +140,9 @@ func (s *Chatbot) ProcessIncomingMessage(ctx context.Context, message *IncomingM
 
 	case predictionuc.ACTION_RECORD:
 		return s.RecordTransaction(ctx, message.SenderJID, message.Text, user, group)
+
+	case predictionuc.ACTION_MCP:
+		return s.GenerateMCPToken(ctx, message.SenderJID, user, message.IsGroup)
 
 	default:
 		return s.handleErrorEvent(ctx, message.SenderJID, constant.ErrInvalidRequest)
@@ -255,6 +264,20 @@ func (s *Chatbot) RecordTransaction(ctx context.Context, jid string, rawText str
 			result.IsFirstToday,
 		)
 		return recordResponse.RenderSuccess()
+	}
+
+	return s.handleErrorEvent(ctx, jid, err)
+}
+
+func (s *Chatbot) GenerateMCPToken(ctx context.Context, jid string, user *domain.User, isGroup bool) []render.Reply {
+	result, err := s.generateMCPToken.Execute(ctx, user, isGroup)
+	if err == nil && result != nil {
+		mcpTokenResponse := render.NewMCPTokenResponseSuccess(
+			ctx,
+			result.MCPURL,
+			result.Token,
+		)
+		return mcpTokenResponse.RenderSuccess()
 	}
 
 	return s.handleErrorEvent(ctx, jid, err)

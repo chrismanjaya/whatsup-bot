@@ -15,6 +15,7 @@ const (
 	ACTION_DETAIL_PAGE  = 5
 	ACTION_REGISTRATION = 6
 	ACTION_SPLIT        = 7
+	ACTION_MCP          = 8
 )
 
 type Action int32
@@ -24,6 +25,7 @@ var (
 	detalKeywords        []string = []string{"transaksi", "transaction", "riwayat", "history", "daftar", "list"}
 	registrationKeywords []string = []string{"register"}
 	splitKeywords        []string = []string{"split"}
+	mcpKeywords          []string = []string{"mcp"}
 
 	replyDetailKeyword []string = []string{"PAGE"}
 	replyAmendKeyword  []string = []string{"EXPENSE", "INCOME"}
@@ -34,6 +36,8 @@ var (
 		switch {
 		case util.ContainsAnyWord(rawMessage, registrationKeywords):
 			return ACTION_REGISTRATION
+		case util.ContainsAnyWord(rawMessage, mcpKeywords):
+			return ACTION_MCP
 		case isGroup && util.ContainsAnyWord(rawMessage, splitKeywords):
 			return ACTION_SPLIT
 		case util.ContainsAnyWord(rawMessage, summaryKeywords):

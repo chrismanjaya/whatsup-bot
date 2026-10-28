@@ -38,4 +38,8 @@ var (
 	ErrTransactionNotFound    = &ErrCode{Code: 10001, Message: "reply transaction not found"}
 	ErrUnclearTransactionDate = &ErrCode{Code: 10002, Message: "transaction date is unclear"}
 	ErrInvalidTransactionType = &ErrCode{Code: 10003, Message: "invalid transaction type"}
+
+	// integration errors
+	ErrPrivateChatOnly = &ErrCode{Code: 30001, Message: "private chat only"}
+	ErrInvalidMCPToken = &ErrCode{Code: 30002, Message: "invalid mcp token"}
 )

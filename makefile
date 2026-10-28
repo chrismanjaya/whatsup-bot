@@ -1,7 +1,9 @@
 APP_NAME   := whatsupbot
-CMD_DIR    := ./cmd
+CMD_DIR    := ./cmd/bot
+MCP_CMD_DIR := ./cmd/mcp
 BIN_DIR    := bin
 BIN        := $(BIN_DIR)/$(APP_NAME)
+MCP_BIN    := $(BIN_DIR)/$(APP_NAME)-mcp
 
 GO         ?= go
 GOFLAGS    ?=
@@ -30,16 +32,23 @@ help: ## Show available targets
 run: ## Run the bot locally
 	CGO_ENABLED=$(CGO_ENABLED) $(GO) run $(GOFLAGS) $(CMD_DIR)
 
+.PHONY: run-mcp
+run-mcp: ## Run the MCP server locally
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) run $(GOFLAGS) $(MCP_CMD_DIR)
+
 .PHONY: build
-build: ## Build binary into bin/
+build: ## Build bot and MCP server binaries into bin/
 	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN) $(CMD_DIR)
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(MCP_BIN) $(MCP_CMD_DIR)
 
 .PHONY: build-linux
 build-linux: ## Cross-compile for linux (requires a cgo cross toolchain, e.g. zig cc)
 	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH) \
 		$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN)-$(GOOS_LINUX)-$(GOARCH) $(CMD_DIR)
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS_LINUX) GOARCH=$(GOARCH) \
+		$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(MCP_BIN)-$(GOOS_LINUX)-$(GOARCH) $(MCP_CMD_DIR)
 
 .PHONY: test
 test: ## Run tests with race detector
@@ -73,11 +82,11 @@ check: fmt vet lint test ## Run fmt, vet, lint and test
 
 .PHONY: clean
 clean: ## Remove build artifacts
-	rm -rf $(BIN_DIR) cmd/cmd
+	rm -rf $(BIN_DIR) cmd/bot/bot cmd/mcp/mcp
 
 .PHONY: reset-db
 reset-db: ## Delete local app DB (keeps WhatsApp session)
-	rm -f whatsup.db
+	rm -f whatsup.db whatsup.db-wal whatsup.db-shm
 
 .PHONY: reset-session
 reset-session: ## Delete WhatsApp session store (forces QR re-login)

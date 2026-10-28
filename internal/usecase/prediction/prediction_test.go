@@ -21,6 +21,8 @@ func TestPredictAction(t *testing.T) {
 		{name: "summary on laporan", rawMessage: "laporan bulan ini", want: ACTION_SUMMARY},
 		{name: "registration", rawMessage: "register Budi budi@mail.com", want: ACTION_REGISTRATION},
 		{name: "split only in groups", rawMessage: "split", isGroup: true, want: ACTION_SPLIT},
+		{name: "mcp token request", rawMessage: "mcp", want: ACTION_MCP},
+		{name: "mcp token request in group", rawMessage: "mcp", isGroup: true, want: ACTION_MCP},
 		{name: "split outside group records", rawMessage: "split", want: ACTION_RECORD},
 		{name: "reply to page message", quotedText: "*PAGE 1/3*\n- Period: ...", isReply: true, want: ACTION_DETAIL_PAGE},
 		{name: "reply to transaction confirmation", quotedText: "*EXPENSE*\n- Desc: *kopi*", isReply: true, want: ACTION_AMEND},

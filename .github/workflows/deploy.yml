@@ -21,8 +21,10 @@ jobs:
       - name: Test
         run: go test -race -count=1 ./...
 
-      - name: Build binary
-        run: go build -trimpath -o whatsup-bot ./cmd
+      - name: Build binaries
+        run: |
+          go build -trimpath -o whatsup-bot ./cmd/bot
+          go build -trimpath -o whatsup-bot-mcp ./cmd/mcp
 
       - name: Set up SSH
         run: |
@@ -34,13 +36,28 @@ jobs:
       - name: Write environment file
         run: |
           ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} \
-            "printf 'GEMINI_API_KEY=%s\nGEMINI_MODEL=%s\n' '${{ secrets.GEMINI_API_KEY }}' '${{ secrets.GEMINI_MODEL }}' > ~/whatsup-bot.env && chmod 600 ~/whatsup-bot.env"
+            "printf 'GEMINI_API_KEY=%s\nGEMINI_MODEL=%s\nMCP_URL=%s\n' '${{ secrets.GEMINI_API_KEY }}' '${{ secrets.GEMINI_MODEL }}' '${{ secrets.MCP_URL }}' > ~/whatsup-bot.env && chmod 600 ~/whatsup-bot.env"
 
-      - name: Copy binary to VM
+      - name: Copy binaries to VM
         run: |
           scp -i ~/.ssh/id_rsa whatsup-bot ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:~/whatsup-bot/whatsup-bot.new
+          scp -i ~/.ssh/id_rsa whatsup-bot-mcp ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:~/whatsup-bot/whatsup-bot-mcp.new
+          scp -i ~/.ssh/id_rsa deploy/whatsup-bot-mcp.service ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:~/whatsup-bot/whatsup-bot-mcp.service.tmpl
 
-      - name: Replace binary and restart service
+      - name: Replace bot binary and restart service
         run: |
           ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} \
             "mv ~/whatsup-bot/whatsup-bot.new ~/whatsup-bot/whatsup-bot && chmod +x ~/whatsup-bot/whatsup-bot && sudo systemctl restart whatsup-bot"
+
+      # the mcp unit runs as the same user, in the same directory as the bot, so both open the same whatsup.db
+      - name: Replace MCP binary, install unit and restart service
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} 'set -e
+            BOT_USER=$(systemctl show -p User --value whatsup-bot)
+            BOT_WORKDIR=$(systemctl show -p WorkingDirectory --value whatsup-bot)
+            if [ -z "$BOT_USER" ] || [ -z "$BOT_WORKDIR" ]; then echo "whatsup-bot unit must set User= and WorkingDirectory=" >&2; exit 1; fi
+            mv ~/whatsup-bot/whatsup-bot-mcp.new "$BOT_WORKDIR/whatsup-bot-mcp" && chmod +x "$BOT_WORKDIR/whatsup-bot-mcp"
+            sed -e "s|__USER__|$BOT_USER|g" -e "s|__WORKDIR__|$BOT_WORKDIR|g" ~/whatsup-bot/whatsup-bot-mcp.service.tmpl | sudo tee /etc/systemd/system/whatsup-bot-mcp.service > /dev/null
+            sudo systemctl daemon-reload
+            sudo systemctl enable whatsup-bot-mcp
+            sudo systemctl restart whatsup-bot-mcp'

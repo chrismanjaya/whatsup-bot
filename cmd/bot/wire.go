@@ -12,10 +12,12 @@ import (
 	"whatsupbot/internal/infra/storage/sqlite"
 
 	groupRepo "whatsupbot/internal/infra/storage/sqlite/group"
+	mcpTokenRepo "whatsupbot/internal/infra/storage/sqlite/mcptoken"
 	transactionRepo "whatsupbot/internal/infra/storage/sqlite/transaction"
 	userRepo "whatsupbot/internal/infra/storage/sqlite/user"
 
 	groupusecase "whatsupbot/internal/usecase/group"
+	integrationusecase "whatsupbot/internal/usecase/integration"
 	personausecase "whatsupbot/internal/usecase/persona"
 	reportusecase "whatsupbot/internal/usecase/report"
 	transactionusecase "whatsupbot/internal/usecase/transaction"
@@ -39,6 +41,7 @@ func Build(ctx context.Context, cfg config.Config) (*whatsappHandler.Handler, er
 	userRepo := userRepo.NewRepo(sqliteClient.Client())
 	transactionRepo := transactionRepo.NewRepo(sqliteClient.Client())
 	groupRepo := groupRepo.NewRepo(sqliteClient.Client())
+	mcpTokenRepo := mcpTokenRepo.NewRepo(sqliteClient.Client())
 
 	// setup external clients
 	whatsappClient, err := whatsapp.NewClient(ctx, whatsapp.Config{
@@ -80,6 +83,12 @@ func Build(ctx context.Context, cfg config.Config) (*whatsappHandler.Handler, er
 		geminiClient,
 	)
 
+	integrationModule := integrationusecase.NewModule(
+		mcpTokenRepo,
+		userRepo,
+		cfg.MCPURL,
+	)
+
 	personaModule := personausecase.NewModule()
 
 	// setup service
@@ -92,6 +101,7 @@ func Build(ctx context.Context, cfg config.Config) (*whatsappHandler.Handler, er
 		userModule.ValidateUsecase(),
 		reportModule.GetDetailUsecase(),
 		reportModule.GetSummarylUsecase(),
+		integrationModule.GenerateMCPTokenUsecase(),
 		personaModule.GetPickerUsecase(),
 	)
 

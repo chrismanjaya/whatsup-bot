@@ -2,7 +2,15 @@ package gemini
 
 import "whatsupbot/internal/domain"
 
-type geminiRecordResponse struct {
+type geminiRecordBatchRequest struct {
+	Index        int    `json:"index"`
+	ReceivedDate string `json:"received_date"`
+	Quip         string `json:"quip"`
+	Text         string `json:"text"`
+}
+
+type geminiRecordBatchResponse struct {
+	Index       int    `json:"index"`
 	Valid       bool   `json:"valid"`
 	Type        string `json:"type"`
 	Amount      int64  `json:"amount"`

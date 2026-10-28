@@ -39,6 +39,6 @@ type (
 )
 
 type GeminiClient interface {
-	ParseRecordMessage(ctx context.Context, rawMessage string) (*domain.ParsedMessage, error)
+	ParseRecordBatch(ctx context.Context, items []domain.ParseBatchItem) ([]*domain.ParsedMessage, error)
 	ParseAmendMessage(ctx context.Context, rawMessage string, transaction *domain.Transaction) (*domain.ParsedMessage, error)
 }

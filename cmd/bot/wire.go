@@ -92,11 +92,21 @@ func Build(ctx context.Context, cfg config.Config) (*whatsappHandler.Handler, er
 	personaModule := personausecase.NewModule()
 
 	// setup service
+	recordBatcher := service.NewRecordBatcher(
+		transactionModule.RecordBatchUsecase(),
+		personaModule.GetPickerUsecase(),
+		service.RecordBatcherConfig{
+			FlushInterval: cfg.RecordBatchInterval,
+			MaxBatchSize:  cfg.RecordBatchMaxSize,
+		},
+	)
+
 	chatbotService := service.NewChatbot(
 		groupModule.ValidateUsecase(),
 		transactionModule.RecordUsecase(),
 		transactionModule.AmendUsecase(),
 		transactionModule.SplitUsecase(),
+		recordBatcher,
 		userModule.RegisterUsecase(),
 		userModule.ValidateUsecase(),
 		reportModule.GetDetailUsecase(),

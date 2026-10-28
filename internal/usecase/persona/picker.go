@@ -25,6 +25,10 @@ func generatePoolKey(jid string, errCode *constant.ErrCode) string {
 	return fmt.Sprintf("%s:%d", jid, errCode.Code)
 }
 
+func generateAckPoolKey(jid string) string {
+	return jid + ":ack"
+}
+
 func (p *Picker) Pick(jid string, errCode *constant.ErrCode) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -38,22 +42,36 @@ func (p *Picker) Pick(jid string, errCode *constant.ErrCode) string {
 		return ""
 	}
 
-	poolKey := generatePoolKey(jid, errCode)
+	idx := p.pickIndex(generatePoolKey(jid, errCode), len(messagePool.Messages))
+
+	return fmt.Sprintf("%s %s", messagePool.Emoji, messagePool.Messages[idx])
+}
+
+// PickAck returns one of AckMessages, avoiding the variant this jid saw last.
+func (p *Picker) PickAck(jid string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return AckMessages[p.pickIndex(generateAckPoolKey(jid), len(AckMessages))]
+}
+
+// pickIndex picks a random index in [0, size), skipping the one last picked for poolKey. Callers must hold mu.
+func (p *Picker) pickIndex(poolKey string, size int) int {
 	idx := 0
 
-	if len(messagePool.Messages) > 1 {
-		if last, seen := p.last[poolKey]; seen && last < len(messagePool.Messages) {
+	if size > 1 {
+		if last, seen := p.last[poolKey]; seen && last < size {
 			// Pick from the other n-1 variants.
-			idx = p.rng.IntN(len(messagePool.Messages) - 1)
+			idx = p.rng.IntN(size - 1)
 			if idx >= last {
 				idx++
 			}
 		} else {
-			idx = p.rng.IntN(len(messagePool.Messages))
+			idx = p.rng.IntN(size)
 		}
 	}
 
 	p.last[poolKey] = idx
 
-	return fmt.Sprintf("%s %s", messagePool.Emoji, messagePool.Messages[idx])
+	return idx
 }

@@ -26,6 +26,7 @@ var (
 	ErrInvalidUser        = &ErrCode{Code: 402, Message: "invalid user"}
 	ErrUserNotRegister    = &ErrCode{Code: 403, Message: "user not register"}
 	ErrAlreadyRegister    = &ErrCode{Code: 409, Message: "already register"}
+	ErrTooManyRequests    = &ErrCode{Code: 429, Message: "too many requests"}
 	ErrServiceUnavailable = &ErrCode{Code: 503, Message: "service unavailable"}
 	ErrInternal           = &ErrCode{Code: 500, Message: "internal error"}
 
@@ -35,9 +36,12 @@ var (
 	ErrInvalidReportPeriodRange = &ErrCode{Code: 20003, Message: "invalid report period range"}
 
 	// transaction errors
-	ErrTransactionNotFound    = &ErrCode{Code: 10001, Message: "reply transaction not found"}
-	ErrUnclearTransactionDate = &ErrCode{Code: 10002, Message: "transaction date is unclear"}
-	ErrInvalidTransactionType = &ErrCode{Code: 10003, Message: "invalid transaction type"}
+	ErrTransactionNotFound      = &ErrCode{Code: 10001, Message: "reply transaction not found"}
+	ErrUnclearTransactionDate   = &ErrCode{Code: 10002, Message: "transaction date is unclear"}
+	ErrInvalidTransactionType   = &ErrCode{Code: 10003, Message: "invalid transaction type"}
+	ErrInvalidTransactionAmount = &ErrCode{Code: 10004, Message: "invalid transaction amount"}
+	ErrFutureTransactionDate    = &ErrCode{Code: 10005, Message: "transaction date is in the future"}
+	ErrTransactionUnparsed      = &ErrCode{Code: 10006, Message: "transaction missing from parse result"}
 
 	// integration errors
 	ErrPrivateChatOnly = &ErrCode{Code: 30001, Message: "private chat only"}

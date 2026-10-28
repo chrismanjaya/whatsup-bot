@@ -3,8 +3,10 @@ package gemini
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 	"whatsupbot/internal/constant"
@@ -27,15 +29,13 @@ var (
 	thinkingLevel = genai.ThinkingLevelMinimal
 )
 
-func (c *Client) ParseRecordMessage(ctx context.Context, rawMessage string) (*domain.ParsedMessage, error) {
+// ParseRecordBatch parses many record lines in one request. The model only sees each item's neutral Index; callers keep the mapping back to users and messages. Results carry the Index the model returned and may be missing, duplicated or out of range — the caller validates them.
+func (c *Client) ParseRecordBatch(ctx context.Context, items []domain.ParseBatchItem) ([]*domain.ParsedMessage, error) {
 	// generate system instruction
-	today := util.GetTodayLocalTimeString("2006-01-02")
 	categories := categoryEnum()
 	systemInstruction := fmt.Sprintf(
-		recordInstructionTemplate,
-		today,
+		recordBatchInstructionTemplate,
 		strings.Join(categories, ", "),
-		today,
 	)
 
 	// generate parse config
@@ -46,55 +46,88 @@ func (c *Client) ParseRecordMessage(ctx context.Context, rawMessage string) (*do
 			ThinkingLevel: thinkingLevel,
 		},
 		ResponseSchema: &genai.Schema{
-			Type: genai.TypeObject,
-			Properties: map[string]*genai.Schema{
-				"valid":       {Type: genai.TypeBoolean},
-				"type":        {Type: genai.TypeString, Enum: transactionTypeEnum()},
-				"amount":      {Type: genai.TypeInteger},
-				"category":    {Type: genai.TypeString, Enum: categories},
-				"description": {Type: genai.TypeString},
-				"date":        {Type: genai.TypeString},
-				"quip":        {Type: genai.TypeString},
+			Type: genai.TypeArray,
+			Items: &genai.Schema{
+				Type: genai.TypeObject,
+				Properties: map[string]*genai.Schema{
+					"index":       {Type: genai.TypeInteger},
+					"valid":       {Type: genai.TypeBoolean},
+					"type":        {Type: genai.TypeString, Enum: transactionTypeEnum()},
+					"amount":      {Type: genai.TypeInteger},
+					"category":    {Type: genai.TypeString, Enum: categories},
+					"description": {Type: genai.TypeString},
+					"date":        {Type: genai.TypeString},
+					"quip":        {Type: genai.TypeString},
+				},
+				Required: []string{"index", "valid", "type", "amount", "category", "description", "date"},
 			},
-			Required: []string{"valid", "type", "amount", "category", "description", "date"},
 		},
 	}
 
+	// build user content
+	content, err := buildRecordBatchContent(items)
+	if err != nil {
+		return nil, util.WrapStd(constant.ErrInternal, "build record batch content failed", err)
+	}
+
 	// parse message
-	raw, err := c.generate(ctx, config, rawMessage, "gemini parse record message failed")
+	raw, err := c.generate(ctx, config, content, "gemini parse record batch failed")
 	if err != nil {
 		return nil, err
 	}
 
 	// mapping response
-	var response geminiRecordResponse
-	if err := json.Unmarshal([]byte(raw), &response); err != nil {
+	var responses []geminiRecordBatchResponse
+	if err := json.Unmarshal([]byte(raw), &responses); err != nil {
 		slog.Error("failed to parse gemini response", "raw", raw, "error", err)
 		return nil, fmt.Errorf("failed to parse gemini response %q: %w", raw, err)
 	}
 
-	slog.Info("gemini parsed message",
-		"valid", response.Valid,
-		"type", response.Type,
-		"amount", response.Amount,
-		"category", response.Category,
-		"description", response.Description,
-		"date", response.Date,
-		"quip", response.Quip,
-	)
+	slog.Info("gemini parsed record batch", "requested", len(items), "returned", len(responses))
 
-	return &domain.ParsedMessage{
-		Valid: response.Valid,
-		Quip:  response.Quip,
-		TransactionMessage: &domain.ParsedTransactionMessage{
-			Type:        response.Type,
-			Amount:      response.Amount,
-			Category:    response.Category,
-			Description: response.Description,
-			Date:        response.Date,
-			DateLayout:  "2006-01-02",
-		},
-	}, nil
+	messages := make([]*domain.ParsedMessage, 0, len(responses))
+	for _, response := range responses {
+		messages = append(messages, &domain.ParsedMessage{
+			Index: response.Index,
+			Valid: response.Valid,
+			Quip:  response.Quip,
+			TransactionMessage: &domain.ParsedTransactionMessage{
+				Type:        response.Type,
+				Amount:      response.Amount,
+				Category:    response.Category,
+				Description: response.Description,
+				Date:        response.Date,
+				DateLayout:  "2006-01-02",
+			},
+		})
+	}
+
+	return messages, nil
+}
+
+// buildRecordBatchContent wraps the items as a JSON array inside <items> tags. json.Marshal escapes '<' and '>', so a text can't close the tag and pose as instructions.
+func buildRecordBatchContent(items []domain.ParseBatchItem) (string, error) {
+	requests := make([]geminiRecordBatchRequest, 0, len(items))
+	for _, item := range items {
+		quip := "no"
+		if item.NeedQuip {
+			quip = "yes"
+		}
+
+		requests = append(requests, geminiRecordBatchRequest{
+			Index:        item.Index,
+			ReceivedDate: item.ReceivedAt.In(util.Jakarta).Format("2006-01-02"),
+			Quip:         quip,
+			Text:         item.Text,
+		})
+	}
+
+	itemsJSON, err := json.Marshal(requests)
+	if err != nil {
+		return "", err
+	}
+
+	return "<items>\n" + string(itemsJSON) + "\n</items>", nil
 }
 
 func (c *Client) ParseAmendMessage(ctx context.Context, rawMessage string, transaction *domain.Transaction) (*domain.ParsedMessage, error) {
@@ -324,17 +357,27 @@ func (c *Client) generate(ctx context.Context, config *genai.GenerateContentConf
 			break
 		}
 
-		if !isRetryable(err) || attempt == maxAttempt {
+		// quota exceeded: retrying within seconds can't help, fail fast
+		if isQuotaExceeded(err) {
+			util.LogError(errMsg, err, "attempt", attempt)
+			return "", util.WrapStd(constant.ErrTooManyRequests, errMsg, err)
+		}
+
+		if !isUnavailable(err) || attempt == maxAttempt {
 			util.LogError(errMsg, err, "attempt", attempt)
 			code := constant.ErrInternal
-			if isRetryable(err) {
+			if isUnavailable(err) {
 				code = constant.ErrServiceUnavailable
 			}
 			return "", util.WrapStd(code, errMsg, err)
 		}
 
 		util.LogWarn(errMsg+", retrying", err, "attempt", attempt)
-		time.Sleep(retryDelay)
+		select {
+		case <-time.After(retryDelay):
+		case <-ctx.Done():
+			return "", util.WrapStd(constant.ErrServiceUnavailable, errMsg, ctx.Err())
+		}
 		retryDelay *= 2
 	}
 
@@ -349,10 +392,22 @@ func (c *Client) generate(ctx context.Context, config *genai.GenerateContentConf
 	return strings.TrimSpace(result.Text()), nil
 }
 
-func isRetryable(err error) bool {
+func isQuotaExceeded(err error) bool {
+	var apiErr genai.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == http.StatusTooManyRequests || apiErr.Status == "RESOURCE_EXHAUSTED"
+	}
+
 	msg := err.Error()
-	return strings.Contains(msg, "503") ||
-		strings.Contains(msg, "UNAVAILABLE") ||
-		strings.Contains(msg, "429") ||
-		strings.Contains(msg, "RESOURCE_EXHAUSTED")
+	return strings.Contains(msg, "429") || strings.Contains(msg, "RESOURCE_EXHAUSTED")
+}
+
+func isUnavailable(err error) bool {
+	var apiErr genai.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == http.StatusServiceUnavailable || apiErr.Status == "UNAVAILABLE"
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "503") || strings.Contains(msg, "UNAVAILABLE")
 }

@@ -43,3 +43,10 @@ func ConvertTransactionDate(transactionDateStr, dateLayout string) *time.Time {
 
 	return &transactionDate
 }
+
+// isAfterDay reports whether a falls on a later calendar day than b in Jakarta.
+func isAfterDay(a, b time.Time) bool {
+	ay, am, ad := a.In(util.Jakarta).Date()
+	by, bm, bd := b.In(util.Jakarta).Date()
+	return time.Date(ay, am, ad, 0, 0, 0, 0, time.UTC).After(time.Date(by, bm, bd, 0, 0, 0, 0, time.UTC))
+}

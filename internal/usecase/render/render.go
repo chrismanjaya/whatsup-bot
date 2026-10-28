@@ -8,6 +8,8 @@ import (
 type (
 	Reply struct {
 		Text     string
+		Reaction string // when set, react to the incoming message with this emoji instead of sending Text
+		IsQuoted bool   // send Text as a quoted reply to the incoming message
 		Metadata Metadata
 	}
 

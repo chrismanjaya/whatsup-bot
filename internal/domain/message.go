@@ -1,13 +1,25 @@
 package domain
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 type ParsedMessage struct {
+	Index int // position of the item in a batch request (1-based); 0 outside a batch
 	Valid bool
 	Quip  string
 
 	TransactionMessage *ParsedTransactionMessage
 	ReportMessage      *ParsedReportMessage
+}
+
+// ParseBatchItem is one record line sent to the parser in a batch. It deliberately carries no user, chat or message identity: the parser only sees the neutral Index.
+type ParseBatchItem struct {
+	Index      int
+	Text       string
+	ReceivedAt time.Time
+	NeedQuip   bool
 }
 
 type (

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 	"whatsupbot/internal/constant"
 	"whatsupbot/internal/domain"
 	groupuc "whatsupbot/internal/usecase/group"
@@ -24,6 +25,9 @@ type Chatbot struct {
 	amendTransaction  *transactionuc.Amend
 	splitTransaction  *transactionuc.Split
 
+	// record batcher
+	recordBatcher *RecordBatcher
+
 	// user usecase
 	registerUser *useruc.Register
 	validateUser *useruc.Validate
@@ -44,6 +48,7 @@ func NewChatbot(
 	recordTransaction *transactionuc.Record,
 	amendTransaction *transactionuc.Amend,
 	splitTransaction *transactionuc.Split,
+	recordBatcher *RecordBatcher,
 	registerUser *useruc.Register,
 	validateUser *useruc.Validate,
 	getDetailReport *reportuc.GetDetail,
@@ -56,6 +61,7 @@ func NewChatbot(
 		recordTransaction: recordTransaction,
 		amendTransaction:  amendTransaction,
 		splitTransaction:  splitTransaction,
+		recordBatcher:     recordBatcher,
 		registerUser:      registerUser,
 		validateUser:      validateUser,
 		getDetailReport:   getDetailReport,
@@ -66,7 +72,10 @@ func NewChatbot(
 }
 
 type IncomingMessage struct {
+	MessageID  string
+	ChatJID    string
 	SenderJID  string
+	ReceivedAt time.Time
 	Text       string
 	StanzaID   string
 	QuotedText string
@@ -139,7 +148,7 @@ func (s *Chatbot) ProcessIncomingMessage(ctx context.Context, message *IncomingM
 		return s.AmendTransaction(ctx, message.SenderJID, message.Text, user, group, message.StanzaID)
 
 	case predictionuc.ACTION_RECORD:
-		return s.RecordTransaction(ctx, message.SenderJID, message.Text, user, group)
+		return s.EnqueueRecordTransaction(ctx, message, user, group)
 
 	case predictionuc.ACTION_MCP:
 		return s.GenerateMCPToken(ctx, message.SenderJID, user, message.IsGroup)
@@ -254,19 +263,45 @@ func (s *Chatbot) AmendTransaction(ctx context.Context, jid string, rawText stri
 	return s.handleErrorEvent(ctx, jid, err)
 }
 
-func (s *Chatbot) RecordTransaction(ctx context.Context, jid string, rawText string, user *domain.User, group *domain.Group) []render.Reply {
-	result, err := s.recordTransaction.Execute(ctx, rawText, user, group)
-	if err == nil && result != nil {
-		recordResponse := render.NewRecordResponseSuccess(
-			ctx,
-			result.Transaction,
-			result.ModelQuip,
-			result.IsFirstToday,
-		)
-		return recordResponse.RenderSuccess()
+// EnqueueRecordTransaction queues the message for the next batch parse; the confirmation arrives later through RunRecordBatcher.
+func (s *Chatbot) EnqueueRecordTransaction(ctx context.Context, message *IncomingMessage, user *domain.User, group *domain.Group) []render.Reply {
+	// validate user
+	isValidUser, userID := transactionuc.ValidateUser(user)
+	if !isValidUser {
+		return s.handleErrorEvent(ctx, message.SenderJID, constant.ErrInvalidUser)
 	}
 
-	return s.handleErrorEvent(ctx, jid, err)
+	// validate group
+	var groupID *int64
+	if isGroup, id := transactionuc.ValidateGroup(group); isGroup {
+		groupID = &id
+	}
+
+	// enqueue message
+	isQueued, needAck := s.recordBatcher.Enqueue(RecordMessage{
+		UserID:     userID,
+		GroupID:    groupID,
+		MessageID:  message.MessageID,
+		ChatJID:    message.ChatJID,
+		SenderJID:  message.SenderJID,
+		Text:       message.Text,
+		ReceivedAt: message.ReceivedAt,
+	})
+	if !isQueued {
+		return s.handleErrorEvent(ctx, message.SenderJID, constant.ErrInvalidRequest)
+	}
+
+	ack := ""
+	if needAck {
+		ack = s.picker.PickAck(message.SenderJID)
+	}
+
+	return render.RenderRecordAccepted(ack)
+}
+
+// RunRecordBatcher flushes queued record messages until ctx is done, handing each finished message to deliver.
+func (s *Chatbot) RunRecordBatcher(ctx context.Context, deliver func(context.Context, RecordDelivery)) {
+	s.recordBatcher.Run(ctx, deliver)
 }
 
 func (s *Chatbot) GenerateMCPToken(ctx context.Context, jid string, user *domain.User, isGroup bool) []render.Reply {

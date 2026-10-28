@@ -62,6 +62,13 @@ var (
 				"Frankie remembers you already. Go ahead and log something, like: buy coffee 5K today",
 			},
 		},
+		constant.ErrTooManyRequests.Code: {
+			Emoji: "⏱️",
+			Messages: []string{
+				"Frankie's lab is crowded right now, bos. Send that again in a minute.",
+				"*juggling too many receipts* ...give Frankie a minute, then send that again.",
+			},
+		},
 		constant.ErrServiceUnavailable.Code: {
 			Emoji: "🧠",
 			Messages: []string{
@@ -154,6 +161,31 @@ var (
 			},
 		},
 
+		constant.ErrInvalidTransactionAmount.Code: {
+			Emoji: "🧮",
+			Messages: []string{
+				"*counts on six fingers* ...that amount doesn't look right, bos. Check the number?",
+				"Frankie's counting machine refused that amount. Try the number again, like: kopi 25k",
+				"Hmm, that's a strange amount for one transaction, bos. Send it again with the right number?",
+			},
+		},
+		constant.ErrFutureTransactionDate.Code: {
+			Emoji: "🔮",
+			Messages: []string{
+				"Frankie can't log money from the future, bos! Send it again on the day it happens.",
+				"*peers into the crystal jar* ...that day hasn't come yet. Only today or earlier, bos.",
+				"The lab's time machine is broken. Frankie only records today or past dates.",
+			},
+		},
+		constant.ErrTransactionUnparsed.Code: {
+			Emoji: "🧵",
+			Messages: []string{
+				"*loose stitch* ...Frankie dropped this one somewhere in the lab. Please send it again.",
+				"Sorry, bos! This one slipped through Frankie's fingers. Send it again?",
+				"Frankie lost track of that one while counting. One more time, bos?",
+			},
+		},
+
 		// integration errors
 		constant.ErrPrivateChatOnly.Code: {
 			Emoji: "🔐",
@@ -165,3 +197,12 @@ var (
 		},
 	}
 )
+
+// AckMessages are Frankie's canned (no AI) acknowledgements sent while record messages wait for the next batch.
+var AckMessages = []string{
+	"Got it, bos! Anything else?",
+	"*scribbles in the big book* ...noted. Anything else, bos?",
+	"Frankie's on it. Got more?",
+	"Into the jar it goes! Anything else?",
+	"Writing it down, bos. Send more if you have it.",
+}

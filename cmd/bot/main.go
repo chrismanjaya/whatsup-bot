@@ -11,7 +11,8 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// setup logger
 	util.SetupLogger()
@@ -42,4 +43,7 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
+
+	// stop the record batcher before the deferred Disconnect waits for it
+	cancel()
 }

@@ -1,9 +1,10 @@
 package transaction
 
 type Module struct {
-	record *Record
-	amend  *Amend
-	split  *Split
+	record      *Record
+	recordBatch *RecordBatch
+	amend       *Amend
+	split       *Split
 }
 
 func NewModule(
@@ -13,14 +14,19 @@ func NewModule(
 	geminiClient GeminiClient,
 ) Module {
 	return Module{
-		record: NewRecord(groupRepo, transactionRepo, userRepo, geminiClient),
-		amend:  NewAmend(groupRepo, transactionRepo, userRepo, geminiClient),
-		split:  NewSplit(groupRepo, transactionRepo, userRepo, geminiClient),
+		record:      NewRecord(transactionRepo),
+		recordBatch: NewRecordBatch(transactionRepo, geminiClient),
+		amend:       NewAmend(groupRepo, transactionRepo, userRepo, geminiClient),
+		split:       NewSplit(groupRepo, transactionRepo, userRepo, geminiClient),
 	}
 }
 
 func (m *Module) RecordUsecase() *Record {
 	return m.record
+}
+
+func (m *Module) RecordBatchUsecase() *RecordBatch {
+	return m.recordBatch
 }
 
 func (m *Module) AmendUsecase() *Amend {

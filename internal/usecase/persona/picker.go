@@ -29,6 +29,10 @@ func generateAckPoolKey(jid string) string {
 	return jid + ":ack"
 }
 
+func generateDeletedPoolKey(jid string) string {
+	return jid + ":deleted"
+}
+
 func (p *Picker) Pick(jid string, errCode *constant.ErrCode) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -53,6 +57,14 @@ func (p *Picker) PickAck(jid string) string {
 	defer p.mu.Unlock()
 
 	return AckMessages[p.pickIndex(generateAckPoolKey(jid), len(AckMessages))]
+}
+
+// PickDeleted returns one of DeletedMessages, avoiding the variant this jid saw last.
+func (p *Picker) PickDeleted(jid string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return DeletedMessages[p.pickIndex(generateDeletedPoolKey(jid), len(DeletedMessages))]
 }
 
 // pickIndex picks a random index in [0, size), skipping the one last picked for poolKey. Callers must hold mu.

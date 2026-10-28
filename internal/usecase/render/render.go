@@ -10,7 +10,9 @@ type (
 		Text     string
 		Reaction string // when set, react to the incoming message with this emoji instead of sending Text
 		IsQuoted bool   // send Text as a quoted reply to the incoming message
-		Metadata Metadata
+
+		IsQuotedReplied bool // send Text as a quoted reply to the message the incoming message replied to
+		Metadata        Metadata
 	}
 
 	Metadata struct {

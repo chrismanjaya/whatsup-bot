@@ -5,11 +5,17 @@ import (
 	"errors"
 	"log/slog"
 	"runtime/debug"
+	"sync/atomic"
 	"time"
 	"whatsupbot/internal/constant"
 	"whatsupbot/internal/usecase/render"
 	transactionuc "whatsupbot/internal/usecase/transaction"
 	"whatsupbot/internal/util"
+)
+
+const (
+	// ackSkipWindow: when the message's result is due within this long, the canned ack is skipped since the confirmation follows right away.
+	ackSkipWindow = 5 * time.Second
 )
 
 type (
@@ -38,6 +44,9 @@ type (
 		recordBatch recordBatchExecutor
 		picker      errorMessagePicker
 		config      RecordBatcherConfig
+
+		now         func() time.Time
+		nextFlushAt atomic.Int64 // unix nanos of the next tick; 0 until Run starts
 	}
 )
 
@@ -51,18 +60,39 @@ func NewRecordBatcher(
 		recordBatch: recordBatch,
 		picker:      picker,
 		config:      config,
+		now:         time.Now,
 	}
 }
 
-// Enqueue adds message to the shared queue. It reports whether anything was queued and whether the user should get a canned ack.
+// Enqueue adds message to the shared queue. It reports whether anything was queued and whether the user should get a canned ack: at most once per batch window, and not when the confirmation is due within ackSkipWindow anyway.
 func (b *RecordBatcher) Enqueue(message RecordMessage) (bool, bool) {
-	return b.queue.push(message)
+	pushed := b.queue.push(message)
+	if !pushed.isQueued {
+		return false, false
+	}
+
+	return true, pushed.isFirstAck && !b.isResultImminent(pushed.queueLen)
+}
+
+// isResultImminent reports whether the next tick is within ackSkipWindow and will include every item up to queueLen.
+func (b *RecordBatcher) isResultImminent(queueLen int) bool {
+	nextFlushAt := b.nextFlushAt.Load()
+	if nextFlushAt == 0 || queueLen > b.config.MaxBatchSize {
+		return false
+	}
+
+	return time.Unix(0, nextFlushAt).Sub(b.now()) < ackSkipWindow
+}
+
+func (b *RecordBatcher) scheduleNextFlush() {
+	b.nextFlushAt.Store(b.now().Add(b.config.FlushInterval).UnixNano())
 }
 
 // Run flushes the queue every FlushInterval until ctx is done, handing each finished message to deliver.
 func (b *RecordBatcher) Run(ctx context.Context, deliver func(context.Context, RecordDelivery)) {
 	ticker := time.NewTicker(b.config.FlushInterval)
 	defer ticker.Stop()
+	b.scheduleNextFlush()
 
 	for {
 		select {
@@ -72,6 +102,7 @@ func (b *RecordBatcher) Run(ctx context.Context, deliver func(context.Context, R
 			}
 			return
 		case <-ticker.C:
+			b.scheduleNextFlush()
 			b.safeFlush(ctx, deliver)
 		}
 	}

@@ -47,11 +47,17 @@ func newRecordQueue() *recordQueue {
 	}
 }
 
-// push splits message into lines and appends them. It reports whether the user should get a canned ack: at most once per batch window. A message with no non-blank line is ignored.
-func (q *recordQueue) push(message RecordMessage) (bool, bool) {
+type pushResult struct {
+	isQueued   bool
+	isFirstAck bool // first message from this user since the last flush
+	queueLen   int  // queue length after the push, i.e. the position of the message's last line
+}
+
+// push splits message into lines and appends them. A message with no non-blank line is ignored.
+func (q *recordQueue) push(message RecordMessage) pushResult {
 	lines := splitRecordLines(message.Text)
 	if len(lines) == 0 {
-		return false, false
+		return pushResult{}
 	}
 
 	entry := &recordEntry{
@@ -71,7 +77,11 @@ func (q *recordQueue) push(message RecordMessage) (bool, bool) {
 	_, acked := q.ackedUsers[message.UserID]
 	q.ackedUsers[message.UserID] = struct{}{}
 
-	return true, !acked
+	return pushResult{
+		isQueued:   true,
+		isFirstAck: !acked,
+		queueLen:   len(q.items),
+	}
 }
 
 // take removes and returns up to max of the oldest items, and opens a new ack window.

@@ -10,10 +10,11 @@ import (
 )
 
 type AmendResponseSuccess struct {
-	ctx         context.Context
-	transaction *domain.Transaction
-	isUpdated   bool
-	isDeleted   bool
+	ctx            context.Context
+	transaction    *domain.Transaction
+	isUpdated      bool
+	isDeleted      bool
+	deletedMessage string
 }
 
 func NewAmendResponseSuccess(
@@ -21,16 +22,23 @@ func NewAmendResponseSuccess(
 	transaction *domain.Transaction,
 	isUpdated bool,
 	isDeleted bool,
+	deletedMessage string,
 ) *AmendResponseSuccess {
 	return &AmendResponseSuccess{
-		ctx:         ctx,
-		transaction: transaction,
-		isUpdated:   isUpdated,
-		isDeleted:   isDeleted,
+		ctx:            ctx,
+		transaction:    transaction,
+		isUpdated:      isUpdated,
+		isDeleted:      isDeleted,
+		deletedMessage: deletedMessage,
 	}
 }
 
 func (r *AmendResponseSuccess) RenderSuccess() []Reply {
+	// deleted: a canned line quoted to the confirmation the user replied to
+	if r.isDeleted {
+		return []Reply{{Text: r.deletedMessage, IsQuotedReplied: true}}
+	}
+
 	// render amend template
 	message, err := util.Render(templateNameTransaction, TemplateDataTransaction{
 		Type:            strings.ToUpper(convertTransactionType(r.transaction.Type)),

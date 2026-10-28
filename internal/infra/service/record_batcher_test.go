@@ -281,6 +281,41 @@ func TestRecordBatcherAckOncePerWindow(t *testing.T) {
 	}
 }
 
+func TestRecordBatcherSkipsAckWhenResultIsImminent(t *testing.T) {
+	now := time.Date(2026, 10, 28, 9, 0, 0, 0, util.Jakarta)
+
+	tests := []struct {
+		name       string
+		untilFlush time.Duration // 0 means Run has not started
+		queued     int           // lines already waiting
+		text       string
+		wantAck    bool
+	}{
+		{name: "acks when the flush is far", untilFlush: 10 * time.Second, text: "kopi", wantAck: true},
+		{name: "skips ack when the flush is near", untilFlush: 3 * time.Second, text: "kopi", wantAck: false},
+		{name: "acks when the queue overflows the next batch", untilFlush: 3 * time.Second, queued: 3, text: "kopi", wantAck: true},
+		{name: "acks when a multi-line message overflows the next batch", untilFlush: 3 * time.Second, text: "a\nb\nc\nd", wantAck: true},
+		{name: "acks before the ticker starts", text: "kopi", wantAck: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			batcher := newTestBatcher(&fakeRecordBatch{}, 3)
+			batcher.now = func() time.Time { return now }
+			if tt.untilFlush > 0 {
+				batcher.nextFlushAt.Store(now.Add(tt.untilFlush).UnixNano())
+			}
+			for i := 0; i < tt.queued; i++ {
+				batcher.Enqueue(recordMessage(99, "other", "teh"))
+			}
+
+			if _, needAck := batcher.Enqueue(recordMessage(1, "m1", tt.text)); needAck != tt.wantAck {
+				t.Fatalf("ack = %v, want %v", needAck, tt.wantAck)
+			}
+		})
+	}
+}
+
 func TestSplitRecordLines(t *testing.T) {
 	tests := []struct {
 		name string

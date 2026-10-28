@@ -46,6 +46,8 @@ type replyTarget struct {
 	sender    types.JID
 	messageID string
 	text      string
+
+	replied *replyTarget // the message the incoming one replied to, if any
 }
 
 func NewHandler(
@@ -117,10 +119,37 @@ func (h *Handler) handleEvent(event interface{}) {
 		sender:    eventMessage.Info.Sender.ToNonAD(),
 		messageID: eventMessage.Info.ID,
 		text:      message.Text,
+		replied:   h.repliedTarget(eventMessage, message),
 	}
 	h.queue.enqueue(chatJID.String(), func() {
 		h.process(context.Background(), chatJID, target, message)
 	})
+}
+
+// repliedTarget points at the message the incoming one replied to, e.g. the bot's transaction confirmation. A reply with no participant comes from a direct chat, where the quoted message is the bot's own.
+func (h *Handler) repliedTarget(eventMessage *events.Message, message *service.IncomingMessage) *replyTarget {
+	if !message.IsReply {
+		return nil
+	}
+
+	sender := types.EmptyJID
+	if participant := eventMessage.Message.GetExtendedTextMessage().GetContextInfo().GetParticipant(); participant != "" {
+		parsed, err := types.ParseJID(participant)
+		if err != nil {
+			util.LogError("parse replied participant failed", err, "chat_jid", eventMessage.Info.Chat.String())
+			return nil
+		}
+		sender = parsed
+	} else if ownID := h.whatsapp.Client().Store.ID; ownID != nil {
+		sender = ownID.ToNonAD()
+	}
+
+	return &replyTarget{
+		chat:      eventMessage.Info.Chat,
+		sender:    sender,
+		messageID: message.StanzaID,
+		text:      message.QuotedText,
+	}
 }
 
 func (h *Handler) process(ctx context.Context, chatJID types.JID, target replyTarget, message *service.IncomingMessage) {
@@ -206,15 +235,11 @@ func (h *Handler) typing(ctx context.Context, chatJID types.JID, text string, ty
 
 func (h *Handler) send(ctx context.Context, target replyTarget, reply render.Reply) {
 	msg := &waE2E.Message{Conversation: proto.String(reply.Text)}
-	if reply.IsQuoted {
-		msg = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text: proto.String(reply.Text),
-			ContextInfo: &waE2E.ContextInfo{
-				StanzaID:      proto.String(target.messageID),
-				Participant:   proto.String(target.sender.String()),
-				QuotedMessage: &waE2E.Message{Conversation: proto.String(target.text)},
-			},
-		}}
+	switch {
+	case reply.IsQuotedReplied && target.replied != nil:
+		msg = quotedMessage(reply.Text, *target.replied)
+	case reply.IsQuoted || reply.IsQuotedReplied:
+		msg = quotedMessage(reply.Text, target)
 	}
 
 	resp, err := h.whatsapp.Client().SendMessage(ctx, target.chat, msg)
@@ -229,6 +254,17 @@ func (h *Handler) send(ctx context.Context, target replyTarget, reply render.Rep
 			util.LogError("update transaction message id failed", err, "chat_jid", target.chat.String())
 		}
 	}
+}
+
+func quotedMessage(text string, quoted replyTarget) *waE2E.Message {
+	return &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+		Text: proto.String(text),
+		ContextInfo: &waE2E.ContextInfo{
+			StanzaID:      proto.String(quoted.messageID),
+			Participant:   proto.String(quoted.sender.String()),
+			QuotedMessage: &waE2E.Message{Conversation: proto.String(quoted.text)},
+		},
+	}}
 }
 
 // react sets the bot's reaction on the target message; a new reaction replaces the previous one.

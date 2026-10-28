@@ -206,3 +206,12 @@ var AckMessages = []string{
 	"Into the jar it goes! Anything else?",
 	"Writing it down, bos. Send more if you have it.",
 }
+
+// DeletedMessages are Frankie's canned (no AI) replies once a transaction is deleted.
+var DeletedMessages = []string{
+	"🗑️ Poof! Gone from the big book, bos.",
+	"🗑️ *rips out the page* ...deleted. Frankie never saw it.",
+	"🗑️ Done, bos. That one is erased from the ledger.",
+	"🗑️ Into the lab furnace it goes. Deleted!",
+	"🗑️ Frankie scrubbed it clean. That transaction is deleted.",
+}

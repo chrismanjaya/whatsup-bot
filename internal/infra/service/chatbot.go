@@ -252,11 +252,19 @@ func (s *Chatbot) GetDetailReport(ctx context.Context, jid string, rawText, quot
 func (s *Chatbot) AmendTransaction(ctx context.Context, jid string, rawText string, user *domain.User, group *domain.Group, messageID string) []render.Reply {
 	result, err := s.amendTransaction.Execute(ctx, rawText, user, group, messageID)
 	if err == nil && result != nil {
+		isDeleted := result.Outcome == transactionuc.AmendOutcomeDeleted
+
+		deletedMessage := ""
+		if isDeleted {
+			deletedMessage = s.picker.PickDeleted(jid)
+		}
+
 		amendResponse := render.NewAmendResponseSuccess(
 			ctx,
 			result.Transaction,
 			result.Outcome == transactionuc.AmendOutcomeUpdated,
-			result.Outcome == transactionuc.AmendOutcomeDeleted,
+			isDeleted,
+			deletedMessage,
 		)
 		return amendResponse.RenderSuccess()
 	}
